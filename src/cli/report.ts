@@ -11,7 +11,7 @@ const LEVEL_LABEL: Record<string, string> = {
  * Renders an analysis result as a plain-text report for the terminal.
  */
 export function formatReport(result: AnalysisResult): string {
-  const { diff, assessment } = result;
+  const { diff, assessment, rollout } = result;
   const lines: string[] = [];
 
   lines.push(`Deploy Oracle risk report (${diff.base} -> ${diff.head})`);
@@ -27,6 +27,17 @@ export function formatReport(result: AnalysisResult): string {
     lines.push('');
     lines.push('No file changes detected.');
   }
+
+  lines.push('');
+  lines.push('Rollout strategy:');
+  lines.push(
+    `  Canary: ${rollout.skipCanary ? 'skip canary, full rollout' : `${rollout.canaryPercentage}% first`}`,
+  );
+  lines.push('  Monitor:');
+  for (const area of rollout.monitoringFocusAreas) {
+    lines.push(`    - ${area}`);
+  }
+  lines.push(`  Rollback: ${rollout.rollbackPlan}`);
 
   return lines.join('\n');
 }

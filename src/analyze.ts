@@ -1,16 +1,18 @@
 import { readCoverageSummary } from './fs/coverage-report.js';
 import { scanRepoFiles } from './fs/repo-scanner.js';
 import { getPullRequestDiff, type GetPullRequestDiffOptions } from './git/git-diff.js';
+import { recommendRollout } from './rollout/recommend-rollout.js';
 import { scoreBlastRadius } from './scoring/blast-radius.js';
 import { computeRiskAssessment } from './scoring/composite-scorer.js';
 import { scoreChangeSize } from './scoring/change-size.js';
 import { buildDependencyGraph } from './scoring/dependency-graph.js';
 import { scoreTestCoverageDelta } from './scoring/test-coverage.js';
-import type { PullRequestDiff, RiskAssessment } from './types/index.js';
+import type { PullRequestDiff, RiskAssessment, RolloutStrategy } from './types/index.js';
 
 export interface AnalysisResult {
   diff: PullRequestDiff;
   assessment: RiskAssessment;
+  rollout: RolloutStrategy;
 }
 
 /**
@@ -39,5 +41,7 @@ export async function analyze(options: GetPullRequestDiffOptions): Promise<Analy
     ),
   ]);
 
-  return { diff, assessment };
+  const rollout = recommendRollout(assessment);
+
+  return { diff, assessment, rollout };
 }

@@ -9,4 +9,5 @@ export * from './scoring/dependency-graph.js';
 export * from './scoring/blast-radius.js';
 export * from './scoring/test-coverage.js';
 export * from './scoring/composite-scorer.js';
+export * from './rollout/recommend-rollout.js';
 export * from './analyze.js';
