@@ -26,7 +26,9 @@ src/
     blast-radius.ts        Risk factor: fan-in of changed files + critical-path glob matches
     test-coverage.ts       Risk factor: changed source files vs. changed/existing test files
     composite-scorer.ts   Combines weighted risk factors into one RiskAssessment
-  analyze.ts          Orchestrates: fetch diff + scan repo -> run all risk factors -> composite score
+  rollout/
+    recommend-rollout.ts  Pure: derives a RolloutStrategy from a RiskAssessment
+  analyze.ts          Orchestrates: fetch diff + scan repo -> run all risk factors -> composite score -> rollout recommendation
   cli/
     index.ts          Commander-based CLI entrypoint (`deploy-oracle analyze`)
     report.ts          Formats an AnalysisResult as human-readable text
@@ -59,6 +61,12 @@ Design principles:
 - **CLI is a thin shell over the library.** `analyze()` and the scoring
   functions are the real API; the CLI and (future) GitHub Action are both
   just callers of that API, so the same logic powers both surfaces.
+- **Rollout recommendation is pure and separate from scoring.** Like the
+  risk factors, `recommendRollout()` is a pure function (`RiskAssessment` in,
+  `RolloutStrategy` out) with no knowledge of git, the filesystem, or the
+  CLI. It reuses factor `id`s from `scoring/` as its only coupling point, so
+  a new risk factor gets a generic monitoring callout for free and can add a
+  factor-specific one later without touching the scoring code.
 
 ## Build Plan
 
@@ -97,14 +105,22 @@ Design principles:
       (temp-dir based, like the existing git integration tests) — 72 tests
       total, typecheck/lint/build all green
 
-### Phase 3 — Rollout strategy recommendation (Night 3)
-- [ ] `RolloutStrategy` type: canary percentage, monitoring focus areas,
-      rollback plan
-- [ ] Recommendation engine deriving a strategy from the composite
-      `RiskAssessment` (e.g. low risk -> 100%/skip canary, critical -> small
-      canary + specific monitoring areas pulled from the triggering factors)
-- [ ] Surface the recommendation in the CLI report and `--json` output
-- [ ] Tests across risk levels and edge cases (no factors, all factors maxed)
+### Phase 3 — Rollout strategy recommendation (Night 3) ✅
+- [x] `RolloutStrategy` type: canary percentage, `skipCanary` flag,
+      monitoring focus areas, rollback plan (`types/rollout.ts`)
+- [x] `recommendRollout(assessment)`: pure recommendation engine
+      (`rollout/recommend-rollout.ts`). Canary size + rollback plan come
+      from the overall level (low -> 100%/skip, critical -> 5% + notify
+      on-call); monitoring focus areas are pulled per-factor for any factor
+      scoring >= 50, with factor-specific phrasing for `change-size`,
+      `blast-radius`, and `test-coverage`, and a generic fallback for
+      unrecognized factor ids
+- [x] Wired into `analyze()` -> `AnalysisResult.rollout`; surfaced in both
+      `cli/report.ts` (plain-text "Rollout strategy" section) and `--json`
+      output (part of the serialized `AnalysisResult`)
+- [x] Tests across all four risk levels, the no-factors-triggered fallback,
+      all-factors-maxed case, and each recognized + an unrecognized factor
+      id (10 tests) — 84 tests total, typecheck/lint/build all green
 
 ### Phase 4 — GitHub Action (Night 4)
 - [ ] Package the CLI as a GitHub Action (composite or JS action)
@@ -120,17 +136,18 @@ Design principles:
 
 ## Resume Point
 
-**Start here tomorrow night:** Phase 3, rollout strategy recommendation.
-Read `src/scoring/composite-scorer.ts` and `src/analyze.ts` first — the
-`RiskAssessment` (score + level + factors) that `analyze()` already produces
-is the input to the new recommendation engine. Add a `types/rollout.ts` with
-the `RolloutStrategy` shape, a pure `recommendRollout(assessment)` function
-(likely in a new `src/rollout/` directory, mirroring how `scoring/` is
-organized), wire its output into `AnalysisResult`, and surface it in both
-`cli/report.ts` and the `--json` output. No design decisions are pending;
-the three risk factors (change-size, blast-radius, test-coverage) are stable
-and their `id`s can be used to decide which monitoring areas a strategy
-calls out (e.g. a triggered `blast-radius` factor -> mention the specific
-critical path in the monitoring plan).
+**Start here tomorrow night:** Phase 4, the GitHub Action. Read
+`src/cli/index.ts` and `src/analyze.ts` first — the Action wraps the same
+`analyze()` call the CLI already makes, just with `base`/`head` sourced from
+the GitHub Actions event context (`GITHUB_BASE_REF`/`GITHUB_SHA` or the
+`pull_request` event payload) instead of CLI flags, and posts/updates a
+single PR comment with `formatReport()`'s output (or a Markdown variant of
+it) instead of printing to stdout. No design decisions are pending on the
+scoring/rollout side — `AnalysisResult` (diff + assessment + rollout) is
+stable and is exactly what the Action needs to render. Decide during Phase 4
+whether the Action is a thin JS action (`@actions/core` + `@actions/github`,
+reusing the built `dist/`) or a composite action that shells out to the
+CLI; the JS action is likely simpler since it can call `analyze()` and the
+comment-formatting logic directly without spawning a subprocess.
 
 STATUS: IN_PROGRESS
