@@ -6,6 +6,12 @@ function result(overrides: Partial<AnalysisResult> = {}): AnalysisResult {
   return {
     diff: { base: 'HEAD', head: 'working-tree', files: [] },
     assessment: { score: 0, level: 'low', factors: [] },
+    rollout: {
+      canaryPercentage: 100,
+      skipCanary: true,
+      monitoringFocusAreas: ['watch standard health metrics'],
+      rollbackPlan: 'revert if anything looks wrong',
+    },
     ...overrides,
   };
 }
@@ -41,5 +47,27 @@ describe('formatReport', () => {
   it('notes when there are no file changes', () => {
     const report = formatReport(result());
     expect(report).toContain('No file changes detected.');
+  });
+
+  it('shows a full rollout with no canary when skipCanary is set', () => {
+    const report = formatReport(result());
+    expect(report).toContain('Canary: skip canary, full rollout');
+  });
+
+  it('shows the canary percentage when a canary is recommended', () => {
+    const report = formatReport(
+      result({
+        rollout: {
+          canaryPercentage: 5,
+          skipCanary: false,
+          monitoringFocusAreas: ['watch error rates closely'],
+          rollbackPlan: 'roll back within minutes',
+        },
+      }),
+    );
+
+    expect(report).toContain('Canary: 5% first');
+    expect(report).toContain('watch error rates closely');
+    expect(report).toContain('Rollback: roll back within minutes');
   });
 });

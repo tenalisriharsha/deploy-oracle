@@ -41,6 +41,8 @@ describe('analyze', () => {
       'blast-radius',
       'test-coverage',
     ]);
+    expect(result.rollout.canaryPercentage).toBe(100);
+    expect(result.rollout.skipCanary).toBe(true);
   });
 
   it('produces a higher change-size score for a larger change', async () => {
@@ -85,5 +87,9 @@ describe('analyze', () => {
     const blastRadius = result.assessment.factors.find((f) => f.id === 'blast-radius');
 
     expect(blastRadius?.score).toBe(100);
+    expect(result.rollout.skipCanary).toBe(false);
+    expect(result.rollout.monitoringFocusAreas.some((area) => area.includes('src/auth/login.ts'))).toBe(
+      true,
+    );
   });
 });
