@@ -3,8 +3,8 @@
 A deployment risk scoring tool. `deploy-oracle` analyzes a pull request —
 files changed, blast radius, test coverage delta, and change size — and
 outputs a deploy risk score with a recommended rollout strategy: canary
-percentage, monitoring focus areas, and a rollback plan. It ships as a CLI
-and, eventually, a GitHub Action that comments the score directly on PRs.
+percentage, monitoring focus areas, and a rollback plan. It ships as both a
+CLI and a GitHub Action that comments the score directly on PRs.
 
 ## Project Status
 
@@ -47,6 +47,46 @@ Rollout strategy:
   Rollback: Keep the previous version ready to restore; roll back at the first sign of regression rather than waiting out the full canary window.
 ```
 
+## Usage (GitHub Action)
+
+Add it to a workflow that checks out the PR with full history (the action
+needs to diff against the actual base commit, which a shallow checkout
+won't have):
+
+```yaml
+name: Deploy Oracle
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: tenalisriharsha/deploy-oracle@main
+```
+
+On a `pull_request` event the action diffs the PR's base and head commits
+automatically and posts the report as a PR comment, editing that same
+comment on subsequent pushes instead of piling up duplicates. Inputs:
+
+| Input   | Required | Default               | Description                             |
+| ------- | -------- | --------------------- | --------------------------------------- |
+| `base`  | no       | the PR's base commit  | Ref/sha to diff against                 |
+| `head`  | no       | the PR's head commit  | Ref/sha to diff                         |
+| `token` | no       | `${{ github.token }}` | Token used to read and post the comment |
+
+If the action isn't running on a `pull_request` event (or `base` can't be
+resolved another way), set `base`/`head` explicitly; the report still
+prints to the job log even when there's no PR to comment on.
+
 ## Risk factors
 
 - **Change size** — files touched + lines churned, saturating past a
@@ -70,15 +110,15 @@ Every analysis also produces a `RolloutStrategy`: a canary percentage, a
 rollback plan, and a list of monitoring focus areas. Canary sizing and the
 rollback plan follow the overall risk level:
 
-| Level    | Canary  | Rollback posture                                      |
-| -------- | ------- | ------------------------------------------------------ |
-| low      | 100% (skip canary) | standard: revert if dashboards/alerts regress |
-| medium   | 50%     | hold at canary until metrics look stable                |
-| high     | 25%     | roll back at the first sign of regression               |
-| critical | 5%      | notify on-call first; roll back within minutes          |
+| Level    | Canary             | Rollback posture                               |
+| -------- | ------------------ | ---------------------------------------------- |
+| low      | 100% (skip canary) | standard: revert if dashboards/alerts regress  |
+| medium   | 50%                | hold at canary until metrics look stable       |
+| high     | 25%                | roll back at the first sign of regression      |
+| critical | 5%                 | notify on-call first; roll back within minutes |
 
 Monitoring focus areas are pulled from whichever individual risk factors
-crossed an attention threshold (score ≥ 50), so the plan calls out *what* to
+crossed an attention threshold (score ≥ 50), so the plan calls out _what_ to
 watch — e.g. "blast radius is elevated, monitor the downstream consumers of
 `src/auth/login.ts` closely" — rather than just how carefully to watch it.
 
