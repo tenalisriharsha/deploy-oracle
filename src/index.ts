@@ -1,4 +1,5 @@
 export * from './types/index.js';
+export * from './config/load-config.js';
 export * from './git/diff-parser.js';
 export * from './git/git-diff.js';
 export * from './fs/repo-scanner.js';
