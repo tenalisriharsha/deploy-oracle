@@ -13,6 +13,8 @@ comments the score directly on the PR.
 ```
 src/
   types/            Shared domain types (FileChange, PullRequestDiff, RiskFactor, RiskAssessment)
+  config/
+    load-config.ts   Loads & merges `.deployoraclerc.json` over each scoring module's defaults
   git/
     diff-parser.ts   Pure parsing of `git diff --numstat` / `--name-status` output
     git-diff.ts       Shells out to git, returns a structured PullRequestDiff
@@ -28,7 +30,7 @@ src/
     composite-scorer.ts   Combines weighted risk factors into one RiskAssessment
   rollout/
     recommend-rollout.ts  Pure: derives a RolloutStrategy from a RiskAssessment
-  analyze.ts          Orchestrates: fetch diff + scan repo -> run all risk factors -> composite score -> rollout recommendation
+  analyze.ts          Orchestrates: fetch diff + scan repo + load config -> run all risk factors -> composite score -> rollout recommendation
   cli/
     index.ts          Commander-based CLI entrypoint (`deploy-oracle analyze`)
     report.ts          Formats an AnalysisResult as human-readable text or GitHub-flavored Markdown
@@ -96,6 +98,18 @@ build` against its own checkout (`github.action_path`) before invoking the
   built entrypoint — a few extra seconds per run in exchange for reusing the
   exact same build as the CLI/library and not needing to special-case what
   gets committed.
+- **Config is a thin, optional overlay, not a new code path.** Every scoring
+  function already took its thresholds/options as an argument with a
+  default; `config/load-config.ts` just reads `.deployoraclerc.json` (if
+  present), merges each section over the same defaults the functions already
+  exported, and `analyze()` auto-loads it from `cwd` when no config is
+  passed explicitly. Factor weights (previously hardcoded to `1` inside each
+  scoring function) are applied as a post-processing override in `analyze()`
+  rather than threaded into every factor — one place to override, no change
+  to the factors themselves. A malformed (present but unparseable) config
+  file throws instead of silently falling back, unlike the coverage report:
+  a config file only exists because someone wrote it, so a typo should fail
+  loud rather than silently score PRs with defaults nobody chose.
 
 ## Build Plan
 
@@ -182,37 +196,36 @@ build` against its own checkout (`github.action_path`) before invoking the
       typecheck/lint/build all green; manually smoke-tested the built
       `dist/action/index.js` end-to-end (with and without PR context)
 
-### Phase 5 — Polish (Night 5+)
+### Phase 5 — Polish (Night 5) ✅
 
-- [ ] Config file support (`.deployoraclerc` or similar) for thresholds,
-      critical-path globs, and weight tuning
-- [ ] Expanded README with real example output and Action usage docs
-- [ ] CI workflow running lint/typecheck/test on every push
+- [x] Config file support: `config/load-config.ts` loads
+      `.deployoraclerc.json` from `cwd` (CLI) / `GITHUB_WORKSPACE` (Action,
+      for free) and merges it over each scoring module's existing defaults
+      — `changeSize` (maxFiles/maxLines), `blastRadius`
+      (maxDependents/criticalPathGlobs), `testCoverage`
+      (lowCoverageThreshold), and a `weights` map keyed by factor id applied
+      as a post-processing override in `analyze()`. CLI gained
+      `-c, --config <path>` to point at a non-default file. Absent file ->
+      built-in defaults; present-but-malformed file throws.
+- [x] Expanded README: a full "Configuration" section (all fields, defaults,
+      merge semantics), a real example Action PR comment (Markdown table +
+      rollout section), a `--config` CLI usage line, and a CI badge.
+- [x] CI workflow (`.github/workflows/ci.yml`): lint, typecheck, test, build
+      on every push/PR to `main` — separate from the Action's own
+      self-dogfooding workflow.
+- [x] Tests: `config/load-config.test.ts` (6 cases — defaults, malformed
+      JSON, non-object JSON, section merging, custom path, non-object
+      section values) plus two new `analyze.test.ts` integration cases
+      (config file picked up from `cwd`, pre-loaded config bypassing the
+      filesystem) — 109 tests total, typecheck/lint/build all green.
 
 ## Resume Point
 
-**Start here tomorrow night:** Phase 5, polish. Nothing is blocked or
-half-finished — all four phases so far are done, tested, and wired
-end-to-end (CLI and Action both call the same `analyze()`). Phase 5 items,
-roughly in priority order:
+**Project complete.** All five planned phases are done, tested, and wired
+end-to-end: risk scoring (change size, blast radius, test coverage delta),
+rollout recommendations, the CLI, the GitHub Action, config file support,
+and CI. See [DAILY_REPORT.md](./DAILY_REPORT.md) for the full summary,
+test results, known limitations, and ideas for future work if this project
+is picked back up.
 
-1. **Config file support** (`.deployoraclerc.json` or similar): let a repo
-   tune change-size thresholds, the blast-radius critical-path glob list,
-   and factor weights without editing source. Look at
-   `scoring/composite-scorer.ts` (factor weights), `scoring/change-size.ts`
-   (thresholds), and `scoring/blast-radius.ts` (the hardcoded critical-path
-   globs) for what should become configurable. `analyze()` would need an
-   optional config param threaded through to whichever scoring functions
-   read it; the CLI would load the file from `cwd` and the Action would need
-   nothing extra since it already resolves `cwd` to `GITHUB_WORKSPACE`.
-2. **CI workflow** running lint/typecheck/test on every push/PR
-   (`.github/workflows/ci.yml` — doesn't exist yet; only the Action's own
-   dogfooding workflow does). Straightforward, no design decisions pending.
-3. **README polish**: real example Action comment output (screenshot or
-   pasted Markdown), and a note on the config file once it exists.
-
-No design decisions are pending from Phase 4 — the Action is a real,
-working composite action, dogfooding itself in
-`.github/workflows/deploy-oracle.yml` on this repo's own PRs.
-
-STATUS: IN_PROGRESS
+STATUS: COMPLETE

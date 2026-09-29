@@ -1,5 +1,7 @@
 # deploy-oracle
 
+[![CI](https://github.com/tenalisriharsha/deploy-oracle/actions/workflows/ci.yml/badge.svg)](https://github.com/tenalisriharsha/deploy-oracle/actions/workflows/ci.yml)
+
 A deployment risk scoring tool. `deploy-oracle` analyzes a pull request —
 files changed, blast radius, test coverage delta, and change size — and
 outputs a deploy risk score with a recommended rollout strategy: canary
@@ -8,9 +10,12 @@ CLI and a GitHub Action that comments the score directly on PRs.
 
 ## Project Status
 
-This project is under active, in-public, nightly development. See
-[PROGRESS.md](./PROGRESS.md) for the architecture, the phased build plan,
-and exactly where work resumes next.
+Feature-complete: all planned phases (scoring engine, blast radius, test
+coverage delta, rollout recommendations, the GitHub Action, config file
+support, CI) are done, tested, and wired end-to-end. See
+[PROGRESS.md](./PROGRESS.md) for the architecture and phased build history,
+and [DAILY_REPORT.md](./DAILY_REPORT.md) for a summary of what was built
+each night.
 
 ## Usage (CLI)
 
@@ -26,6 +31,9 @@ node dist/cli/index.js analyze --base main --head HEAD
 
 # Machine-readable output
 node dist/cli/index.js analyze --json
+
+# Use a config file at a non-default path
+node dist/cli/index.js analyze --config risk-config.json
 ```
 
 Example output:
@@ -86,6 +94,76 @@ comment on subsequent pushes instead of piling up duplicates. Inputs:
 If the action isn't running on a `pull_request` event (or `base` can't be
 resolved another way), set `base`/`head` explicitly; the report still
 prints to the job log even when there's no PR to comment on.
+
+Example PR comment:
+
+> ### Deploy Oracle risk report
+> **Risk score:** 55/100 (HIGH)
+>
+> _Diffing `main` → `a1b2c3d`_
+>
+> | Factor | Score | Detail |
+> | --- | --- | --- |
+> | Change size | 23/100 | 7 files changed, 58 lines touched |
+> | Blast radius | 93/100 | src/types/index.ts has 14 known dependents |
+> | Test coverage delta | 50/100 | 2/4 changed files with no test coverage (src/index.ts, src/types/index.ts) |
+>
+> **Rollout strategy**
+> - Canary: 25% first
+> - Monitor:
+>   - Blast radius is elevated (93/100) — src/types/index.ts has 14 known dependents. Monitor the downstream consumers of the changed files closely.
+>   - Test coverage delta is elevated (50/100) — 2/4 changed files with no test coverage (src/index.ts, src/types/index.ts). Monitor for regressions in the paths that shipped without test updates.
+> - Rollback: Keep the previous version ready to restore; roll back at the first sign of regression rather than waiting out the full canary window.
+
+The action edits this same comment (matched via a hidden HTML marker) on
+every subsequent push to the PR, instead of piling up a new one each time.
+
+## Configuration
+
+Drop a `.deployoraclerc.json` in the repo root to tune thresholds, the
+critical-path glob list, and per-factor weights without touching source.
+Every field is optional — anything you omit falls back to its default:
+
+```json
+{
+  "changeSize": {
+    "maxFiles": 30,
+    "maxLines": 1000
+  },
+  "blastRadius": {
+    "maxDependents": 15,
+    "criticalPathGlobs": ["**/auth/**", "**/*payment*", "**/migrations/**"]
+  },
+  "testCoverage": {
+    "lowCoverageThreshold": 50
+  },
+  "weights": {
+    "change-size": 1,
+    "blast-radius": 2,
+    "test-coverage": 1
+  }
+}
+```
+
+- `changeSize.maxFiles` / `changeSize.maxLines` — file/line counts at which
+  the change-size factor saturates at 100.
+- `blastRadius.maxDependents` — known-dependent count at which the fan-in
+  score saturates at 100.
+- `blastRadius.criticalPathGlobs` — replaces (not merges with) the default
+  glob list; any changed file matching one of these scores 100 regardless of
+  fan-in.
+- `testCoverage.lowCoverageThreshold` — line-coverage percentage (from an
+  Istanbul `coverage-summary.json`, if present) below which an existing test
+  is treated as insufficient.
+- `weights` — overrides a risk factor's contribution to the overall score,
+  keyed by factor id (`change-size`, `blast-radius`, `test-coverage`).
+  Defaults to `1` for every factor; `0` excludes a factor from the score
+  entirely while still showing it in the report.
+
+The CLI loads this file from `cwd` automatically (override the path with
+`--config <path>`); the Action needs nothing extra since it already resolves
+`cwd` to `GITHUB_WORKSPACE`. A present-but-invalid config file fails loudly
+rather than silently falling back to defaults.
 
 ## Risk factors
 
