@@ -92,4 +92,40 @@ describe('analyze', () => {
       true,
     );
   });
+
+  it('honors a .deployoraclerc.json in cwd for thresholds and weights', async () => {
+    await writeFile(
+      join(repoDir, '.deployoraclerc.json'),
+      JSON.stringify({
+        changeSize: { maxFiles: 1, maxLines: 1 },
+        weights: { 'change-size': 5, 'blast-radius': 0, 'test-coverage': 0 },
+      }),
+    );
+    await writeFile(join(repoDir, 'a.txt'), 'hello\nworld\n');
+
+    const result = await analyze({ base: 'HEAD', cwd: repoDir });
+    const changeSize = result.assessment.factors.find((f) => f.id === 'change-size');
+
+    expect(changeSize?.score).toBe(100);
+    expect(changeSize?.weight).toBe(5);
+    expect(result.assessment.score).toBe(100);
+  });
+
+  it('accepts a pre-loaded config, bypassing the filesystem lookup', async () => {
+    await writeFile(join(repoDir, 'a.txt'), 'hello\nworld\n');
+
+    const result = await analyze({
+      base: 'HEAD',
+      cwd: repoDir,
+      config: {
+        changeSize: { maxFiles: 30, maxLines: 1000 },
+        blastRadius: { criticalPathGlobs: [], maxDependents: 15 },
+        testCoverage: { lowCoverageThreshold: 50 },
+        weights: { 'change-size': 2 },
+      },
+    });
+    const changeSize = result.assessment.factors.find((f) => f.id === 'change-size');
+
+    expect(changeSize?.weight).toBe(2);
+  });
 });
