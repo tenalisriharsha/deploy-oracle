@@ -8,6 +8,26 @@ outputs a deploy risk score with a recommended rollout strategy: canary
 percentage, monitoring focus areas, and a rollback plan. It ships as both a
 CLI and a GitHub Action that comments the score directly on PRs.
 
+## Preview
+
+What lands on the PR — the real markdown the formatter produces, rendered
+the way GitHub displays it:
+
+![The deploy-oracle report as a PR comment: risk table and rollout strategy](docs/screenshots/05-pr-comment.png)
+
+<details>
+<summary>More views</summary>
+
+![analyze: a genuinely HIGH-risk diff from this repo's own history](docs/screenshots/01-analyze-high.png)
+
+![analyze: a genuinely LOW-risk, docs-only diff for contrast](docs/screenshots/02-analyze-low.png)
+
+![analyze --json: the same engine that powers the PR comment](docs/screenshots/03-json.png)
+
+![--help](docs/screenshots/04-help.png)
+
+</details>
+
 ## Project Status
 
 Feature-complete: all planned phases (scoring engine, blast radius, test
