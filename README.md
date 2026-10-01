@@ -26,6 +26,8 @@ the way GitHub displays it:
 
 ![--help](docs/screenshots/04-help.png)
 
+![A config file reweighting the same diff from HIGH (59) to CRITICAL (78)](docs/screenshots/06-custom-config.png)
+
 </details>
 
 ## Project Status
