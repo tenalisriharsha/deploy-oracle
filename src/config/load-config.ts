@@ -60,7 +60,31 @@ export async function loadConfig(
 
   const config = parsed as Record<string, unknown>;
 
+  const changeSize = asRecord(config.changeSize);
   const blastRadius = asRecord(config.blastRadius);
+  const testCoverage = asRecord(config.testCoverage);
+  const weights = asRecord(config.weights);
+
+  // A wrong-typed threshold or weight would otherwise turn the score into NaN,
+  // which scoreToLevel() reports as LOW: the least safe possible failure mode.
+  assertNonNegativeNumber(changeSize.maxFiles, `${configPath} changeSize.maxFiles`);
+  assertNonNegativeNumber(changeSize.maxLines, `${configPath} changeSize.maxLines`);
+  assertNonNegativeNumber(blastRadius.maxDependents, `${configPath} blastRadius.maxDependents`);
+  assertNonNegativeNumber(
+    testCoverage.lowCoverageThreshold,
+    `${configPath} testCoverage.lowCoverageThreshold`,
+  );
+  for (const [factorId, weight] of Object.entries(weights)) {
+    assertNonNegativeNumber(weight, `${configPath} weights.${factorId}`);
+  }
+  if (
+    blastRadius.criticalPathGlobs !== undefined &&
+    (!Array.isArray(blastRadius.criticalPathGlobs) ||
+      !blastRadius.criticalPathGlobs.every((glob) => typeof glob === 'string'))
+  ) {
+    throw new Error(`${configPath} blastRadius.criticalPathGlobs must be an array of strings`);
+  }
+
   if (
     blastRadius.criticalPathFloor !== undefined &&
     !CRITICAL_PATH_FLOOR_VALUES.includes(blastRadius.criticalPathFloor as never)
@@ -71,11 +95,18 @@ export async function loadConfig(
   }
 
   return {
-    changeSize: { ...DEFAULT_CHANGE_SIZE_THRESHOLDS, ...asRecord(config.changeSize) },
+    changeSize: { ...DEFAULT_CHANGE_SIZE_THRESHOLDS, ...changeSize },
     blastRadius: { ...DEFAULT_BLAST_RADIUS_OPTIONS, ...blastRadius },
-    testCoverage: { ...DEFAULT_TEST_COVERAGE_OPTIONS, ...asRecord(config.testCoverage) },
-    weights: asRecord(config.weights) as FactorWeights,
+    testCoverage: { ...DEFAULT_TEST_COVERAGE_OPTIONS, ...testCoverage },
+    weights: weights as FactorWeights,
   };
+}
+
+function assertNonNegativeNumber(value: unknown, field: string): void {
+  if (value === undefined) return;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    throw new Error(`${field} must be a non-negative number, got ${JSON.stringify(value)}`);
+  }
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

@@ -90,5 +90,19 @@ describe('loadConfig', () => {
 
     await expect(loadConfig(rootDir)).rejects.toThrow(/criticalPathFloor must be one of/);
   });
+
+  it.each([
+    [{ changeSize: { maxFiles: 'abc' } }, /changeSize\.maxFiles must be a non-negative number/],
+    [{ changeSize: { maxLines: -5 } }, /changeSize\.maxLines must be a non-negative number/],
+    [{ blastRadius: { maxDependents: null } }, /blastRadius\.maxDependents must be/],
+    [{ testCoverage: { lowCoverageThreshold: '80' } }, /lowCoverageThreshold must be/],
+    [{ weights: { 'blast-radius': 'x' } }, /weights\.blast-radius must be a non-negative number/],
+    [{ weights: { 'change-size': -1 } }, /weights\.change-size must be a non-negative number/],
+    [{ blastRadius: { criticalPathGlobs: '**/auth/**' } }, /criticalPathGlobs must be an array/],
+  ])('rejects a wrong-typed value instead of scoring NaN as LOW: %j', async (raw, message) => {
+    await writeFile(join(rootDir, '.deployoraclerc.json'), JSON.stringify(raw));
+
+    await expect(loadConfig(rootDir)).rejects.toThrow(message);
+  });
 });
 
