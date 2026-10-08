@@ -1,6 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { DEFAULT_BLAST_RADIUS_OPTIONS, type BlastRadiusOptions } from '../scoring/blast-radius.js';
+import {
+  CRITICAL_PATH_FLOOR_VALUES,
+  DEFAULT_BLAST_RADIUS_OPTIONS,
+  type BlastRadiusOptions,
+} from '../scoring/blast-radius.js';
 import { DEFAULT_CHANGE_SIZE_THRESHOLDS, type ChangeSizeThresholds } from '../scoring/change-size.js';
 import { DEFAULT_TEST_COVERAGE_OPTIONS, type TestCoverageOptions } from '../scoring/test-coverage.js';
 
@@ -56,9 +60,19 @@ export async function loadConfig(
 
   const config = parsed as Record<string, unknown>;
 
+  const blastRadius = asRecord(config.blastRadius);
+  if (
+    blastRadius.criticalPathFloor !== undefined &&
+    !CRITICAL_PATH_FLOOR_VALUES.includes(blastRadius.criticalPathFloor as never)
+  ) {
+    throw new Error(
+      `deploy-oracle: ${configPath} blastRadius.criticalPathFloor must be one of ${CRITICAL_PATH_FLOOR_VALUES.join(', ')}`,
+    );
+  }
+
   return {
     changeSize: { ...DEFAULT_CHANGE_SIZE_THRESHOLDS, ...asRecord(config.changeSize) },
-    blastRadius: { ...DEFAULT_BLAST_RADIUS_OPTIONS, ...asRecord(config.blastRadius) },
+    blastRadius: { ...DEFAULT_BLAST_RADIUS_OPTIONS, ...blastRadius },
     testCoverage: { ...DEFAULT_TEST_COVERAGE_OPTIONS, ...asRecord(config.testCoverage) },
     weights: asRecord(config.weights) as FactorWeights,
   };

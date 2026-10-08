@@ -1,4 +1,4 @@
-import type { FileChange, RiskFactor } from '../types/index.js';
+import type { FileChange, RiskFactor, RiskLevel } from '../types/index.js';
 import { countDependents, type DependencyGraph } from './dependency-graph.js';
 import { matchesAnyGlob } from './glob.js';
 
@@ -7,7 +7,21 @@ export interface BlastRadiusOptions {
   criticalPathGlobs: string[];
   /** Dependent count at or above which the fan-in score saturates at 100. */
   maxDependents: number;
+  /**
+   * Minimum overall level imposed when a changed file matches a critical path
+   * glob, or `'none'` to rely on the weighted average alone. Defaults to
+   * `'high'`.
+   */
+  criticalPathFloor?: RiskLevel | 'none';
 }
+
+export const CRITICAL_PATH_FLOOR_VALUES: ReadonlyArray<RiskLevel | 'none'> = [
+  'none',
+  'low',
+  'medium',
+  'high',
+  'critical',
+];
 
 export const DEFAULT_CRITICAL_PATH_GLOBS: string[] = [
   '**/auth/**',
@@ -26,9 +40,12 @@ export const DEFAULT_CRITICAL_PATH_GLOBS: string[] = [
   '**/*.config.*',
 ];
 
+const DEFAULT_CRITICAL_PATH_FLOOR: RiskLevel | 'none' = 'high';
+
 export const DEFAULT_BLAST_RADIUS_OPTIONS: BlastRadiusOptions = {
   criticalPathGlobs: DEFAULT_CRITICAL_PATH_GLOBS,
   maxDependents: 15,
+  criticalPathFloor: DEFAULT_CRITICAL_PATH_FLOOR,
 };
 
 /**
@@ -61,6 +78,7 @@ export function scoreBlastRadius(
   const dependentScore =
     options.maxDependents <= 0 ? 0 : Math.min(100, (maxDependents / options.maxDependents) * 100);
   const criticalScore = criticalMatches.length > 0 ? 100 : 0;
+  const criticalPathFloor = options.criticalPathFloor ?? DEFAULT_CRITICAL_PATH_FLOOR;
   const score = Math.round(Math.max(dependentScore, criticalScore));
 
   const detailParts: string[] = [];
@@ -81,5 +99,8 @@ export function scoreBlastRadius(
     score,
     weight: 1,
     detail: detailParts.join('; '),
+    ...(criticalMatches.length > 0 && criticalPathFloor !== 'none'
+      ? { floor: criticalPathFloor }
+      : {}),
   };
 }

@@ -154,7 +154,8 @@ Every field is optional — anything you omit falls back to its default:
   },
   "blastRadius": {
     "maxDependents": 15,
-    "criticalPathGlobs": ["**/auth/**", "**/*payment*", "**/migrations/**"]
+    "criticalPathGlobs": ["**/auth/**", "**/*payment*", "**/migrations/**"],
+    "criticalPathFloor": "high"
   },
   "testCoverage": {
     "lowCoverageThreshold": 50
@@ -174,6 +175,10 @@ Every field is optional — anything you omit falls back to its default:
 - `blastRadius.criticalPathGlobs` — replaces (not merges with) the default
   glob list; any changed file matching one of these scores 100 regardless of
   fan-in.
+- `blastRadius.criticalPathFloor` — the minimum overall level imposed when a
+  changed file matches a critical-path glob: `none`, `low`, `medium`, `high`
+  (the default) or `critical`. See [Critical path floor](#critical-path-floor).
+  An unknown value fails loudly instead of being ignored.
 - `testCoverage.lowCoverageThreshold` — line-coverage percentage (from an
   Istanbul `coverage-summary.json`, if present) below which an existing test
   is treated as insufficient.
@@ -203,6 +208,32 @@ rather than silently falling back to defaults.
   an existing-but-unchanged test is a middling risk. If an Istanbul-style
   `coverage/coverage-summary.json` report is present, low reported line
   coverage on a file is treated the same as having no test at all.
+
+### Critical path floor
+
+The overall score is a weighted average, and an average can dilute one decisive
+signal. A one-file migration that drops a table scores 100 on blast radius,
+but next to a tiny diff and no source files to cover it averages out to 34,
+which is MEDIUM and a 50% canary. A change like that should not get a looser
+rollout just because it is small.
+
+So when any changed file matches a critical-path glob, blast radius also sets
+a **floor** on the overall level (`high` by default). The level is raised to
+the floor and the score is lifted to that level's lower bound, so the two
+never disagree, and the report says it happened:
+
+```
+Risk score: 50/100 (HIGH)
+Floor: raised from MEDIUM (weighted score 34) to HIGH because blast radius is on a critical path
+```
+
+A floor only ever raises the level, never lowers it. Set the blast-radius
+weight to `0` to exclude that factor entirely, including its floor, or set
+`criticalPathFloor` to `none` to go back to the plain weighted average.
+
+Limits worth knowing: the floor reacts to file paths, so it does not know
+whether a change is actually reversible (a feature flag flip versus a
+destructive migration), and it is only as good as your glob list.
 
 ## Rollout strategy
 
