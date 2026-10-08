@@ -66,3 +66,37 @@ describe('scoreBlastRadius', () => {
     expect(factor.detail).toContain('touches critical path: src/auth/login.ts');
   });
 });
+
+describe('scoreBlastRadius critical path floor', () => {
+  const graph = buildDependencyGraph([{ path: 'db/migrations/001_drop_users.sql', content: '' }]);
+  const migration = file({ path: 'db/migrations/001_drop_users.sql' });
+
+  it('imposes a high floor by default when a changed file is on a critical path', () => {
+    expect(scoreBlastRadius([migration], graph).floor).toBe('high');
+  });
+
+  it('imposes no floor when no changed file is on a critical path', () => {
+    const leafGraph = buildDependencyGraph([{ path: 'src/leaf.ts', content: '' }]);
+    expect(scoreBlastRadius([file({ path: 'src/leaf.ts' })], leafGraph).floor).toBeUndefined();
+  });
+
+  it('honors a configured floor level', () => {
+    const factor = scoreBlastRadius([migration], graph, {
+      criticalPathGlobs: ['**/migrations/**'],
+      maxDependents: 15,
+      criticalPathFloor: 'critical',
+    });
+    expect(factor.floor).toBe('critical');
+  });
+
+  it('can be turned off with none', () => {
+    const factor = scoreBlastRadius([migration], graph, {
+      criticalPathGlobs: ['**/migrations/**'],
+      maxDependents: 15,
+      criticalPathFloor: 'none',
+    });
+    expect(factor.score).toBe(100);
+    expect(factor.floor).toBeUndefined();
+  });
+});
+

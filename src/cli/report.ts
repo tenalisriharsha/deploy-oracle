@@ -16,6 +16,10 @@ export function formatReport(result: AnalysisResult): string {
 
   lines.push(`Deploy Oracle risk report (${diff.base} -> ${diff.head})`);
   lines.push(`Risk score: ${assessment.score}/100 (${LEVEL_LABEL[assessment.level]})`);
+  const floorNote = describeFloor(assessment);
+  if (floorNote) {
+    lines.push(`Floor: ${floorNote}`);
+  }
   lines.push('');
   lines.push('Factors:');
 
@@ -54,6 +58,11 @@ export function formatMarkdownReport(result: AnalysisResult): string {
   lines.push('### Deploy Oracle risk report');
   lines.push(`**Risk score:** ${assessment.score}/100 (${LEVEL_LABEL[assessment.level]})`);
   lines.push('');
+  const floorNote = describeFloor(assessment);
+  if (floorNote) {
+    lines.push(`**Floor:** ${floorNote}`);
+  }
+  lines.push('');
   lines.push(`_Diffing \`${diff.base}\` → \`${diff.head}\`_`);
   lines.push('');
 
@@ -81,6 +90,17 @@ export function formatMarkdownReport(result: AnalysisResult): string {
   lines.push(`- Rollback: ${rollout.rollbackPlan}`);
 
   return lines.join('\n');
+}
+
+/**
+ * Explains a raised level, so a reader who sees HIGH next to a low weighted
+ * average knows why instead of suspecting a bug.
+ */
+function describeFloor(assessment: AnalysisResult['assessment']): string | undefined {
+  const applied = assessment.floorApplied;
+  if (!applied) return undefined;
+  const factor = assessment.factors.find((f) => f.id === applied.factorId);
+  return `raised from ${LEVEL_LABEL[applied.rawLevel]} (weighted score ${applied.rawScore}) to ${LEVEL_LABEL[applied.level]} because ${factor?.label.toLowerCase() ?? applied.factorId} is on a critical path`;
 }
 
 function escapeTableCell(value: string): string {

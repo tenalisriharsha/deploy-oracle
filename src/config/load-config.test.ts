@@ -66,4 +66,29 @@ describe('loadConfig', () => {
 
     expect(config.changeSize).toEqual(DEFAULT_CONFIG.changeSize);
   });
+
+  it('accepts a valid blastRadius.criticalPathFloor', async () => {
+    await writeFile(
+      join(rootDir, '.deployoraclerc.json'),
+      JSON.stringify({ blastRadius: { criticalPathFloor: 'none' } }),
+    );
+
+    const config = await loadConfig(rootDir);
+    expect(config.blastRadius.criticalPathFloor).toBe('none');
+  });
+
+  it('defaults criticalPathFloor to high', async () => {
+    const config = await loadConfig(rootDir);
+    expect(config.blastRadius.criticalPathFloor).toBe('high');
+  });
+
+  it('throws on an unknown criticalPathFloor instead of silently ignoring it', async () => {
+    await writeFile(
+      join(rootDir, '.deployoraclerc.json'),
+      JSON.stringify({ blastRadius: { criticalPathFloor: 'urgent' } }),
+    );
+
+    await expect(loadConfig(rootDir)).rejects.toThrow(/criticalPathFloor must be one of/);
+  });
 });
+

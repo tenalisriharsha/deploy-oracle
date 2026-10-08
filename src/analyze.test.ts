@@ -128,4 +128,55 @@ describe('analyze', () => {
 
     expect(changeSize?.weight).toBe(2);
   });
+
+  it('holds a small tested migration at a cautious canary instead of averaging it away', async () => {
+    await mkdir(join(repoDir, 'db', 'migrations'), { recursive: true });
+    await writeFile(join(repoDir, 'db', 'migrations', '001_drop_users.sql'), 'DROP TABLE users;\n');
+    await git(repoDir, ['add', '.']);
+
+    const result = await analyze({
+      base: 'HEAD',
+      cwd: repoDir,
+      config: {
+        changeSize: { maxFiles: 30, maxLines: 1000 },
+        blastRadius: { criticalPathGlobs: ['**/migrations/**'], maxDependents: 15 },
+        testCoverage: { lowCoverageThreshold: 50 },
+        weights: {},
+      },
+    });
+
+    // change size 3, blast radius 100, coverage 0: the average alone is 34, medium, 50% canary.
+    expect(result.assessment.floorApplied?.rawScore).toBe(34);
+    expect(result.assessment.floorApplied?.rawLevel).toBe('medium');
+    expect(result.assessment.level).toBe('high');
+    expect(result.rollout.canaryPercentage).toBe(25);
+    expect(result.rollout.skipCanary).toBe(false);
+  });
+
+  it('keeps the weighted average when the floor is configured off', async () => {
+    await mkdir(join(repoDir, 'db', 'migrations'), { recursive: true });
+    await writeFile(join(repoDir, 'db', 'migrations', '001_drop_users.sql'), 'DROP TABLE users;\n');
+    await git(repoDir, ['add', '.']);
+
+    const result = await analyze({
+      base: 'HEAD',
+      cwd: repoDir,
+      config: {
+        changeSize: { maxFiles: 30, maxLines: 1000 },
+        blastRadius: {
+          criticalPathGlobs: ['**/migrations/**'],
+          maxDependents: 15,
+          criticalPathFloor: 'none',
+        },
+        testCoverage: { lowCoverageThreshold: 50 },
+        weights: {},
+      },
+    });
+
+    expect(result.assessment.score).toBe(34);
+    expect(result.assessment.level).toBe('medium');
+    expect(result.rollout.canaryPercentage).toBe(50);
+    expect(result.assessment.floorApplied).toBeUndefined();
+  });
 });
+

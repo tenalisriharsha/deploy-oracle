@@ -154,3 +154,39 @@ describe('formatMarkdownReport', () => {
     expect(report).toContain('Rollback: roll back within minutes');
   });
 });
+
+describe('floor note', () => {
+  const floored = result({
+    assessment: {
+      score: 50,
+      level: 'high',
+      factors: [
+        {
+          id: 'blast-radius',
+          label: 'Blast radius',
+          score: 100,
+          weight: 1,
+          detail: 'touches critical path: db/migrations/001.sql',
+          floor: 'high',
+        },
+      ],
+      floorApplied: { level: 'high', factorId: 'blast-radius', rawScore: 34, rawLevel: 'medium' },
+    },
+  });
+
+  it('explains a raised level in the terminal report', () => {
+    expect(formatReport(floored)).toContain(
+      'Floor: raised from MEDIUM (weighted score 34) to HIGH because blast radius is on a critical path',
+    );
+  });
+
+  it('explains a raised level in the markdown report', () => {
+    expect(formatMarkdownReport(floored)).toContain('**Floor:** raised from MEDIUM');
+  });
+
+  it('adds no floor line when nothing was raised', () => {
+    expect(formatReport(result())).not.toContain('Floor:');
+    expect(formatMarkdownReport(result())).not.toContain('Floor:');
+  });
+});
+
