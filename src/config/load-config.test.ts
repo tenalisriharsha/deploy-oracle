@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -104,5 +104,22 @@ describe('loadConfig', () => {
 
     await expect(loadConfig(rootDir)).rejects.toThrow(message);
   });
-});
 
+  it('throws when a required config file does not exist', async () => {
+    await expect(loadConfig(rootDir, 'missing.json', { required: true })).rejects.toThrow(
+      /config file missing\.json not found/,
+    );
+  });
+
+  it('throws when the config path exists but cannot be read as a file', async () => {
+    await mkdir(join(rootDir, '.deployoraclerc.json'));
+
+    await expect(loadConfig(rootDir)).rejects.toThrow(/failed to read \.deployoraclerc\.json/);
+  });
+
+  it('does not prefix its errors with the tool name, leaving that to the caller', async () => {
+    await writeFile(join(rootDir, '.deployoraclerc.json'), 'not json');
+
+    await expect(loadConfig(rootDir)).rejects.toThrow(/^failed to parse/);
+  });
+});
