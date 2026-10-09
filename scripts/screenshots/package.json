@@ -1,0 +1,13 @@
+{
+  "name": "deploy-oracle-screenshots",
+  "private": true,
+  "description": "Regenerates docs/screenshots from real command output. Kept separate so the Action's npm ci does not install a browser driver.",
+  "type": "module",
+  "scripts": {
+    "generate": "node generate.mjs"
+  },
+  "dependencies": {
+    "marked": "15.0.12",
+    "playwright": "1.56.1"
+  }
+}

@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -90,5 +90,36 @@ describe('loadConfig', () => {
 
     await expect(loadConfig(rootDir)).rejects.toThrow(/criticalPathFloor must be one of/);
   });
-});
 
+  it.each([
+    [{ changeSize: { maxFiles: 'abc' } }, /changeSize\.maxFiles must be a non-negative number/],
+    [{ changeSize: { maxLines: -5 } }, /changeSize\.maxLines must be a non-negative number/],
+    [{ blastRadius: { maxDependents: null } }, /blastRadius\.maxDependents must be/],
+    [{ testCoverage: { lowCoverageThreshold: '80' } }, /lowCoverageThreshold must be/],
+    [{ weights: { 'blast-radius': 'x' } }, /weights\.blast-radius must be a non-negative number/],
+    [{ weights: { 'change-size': -1 } }, /weights\.change-size must be a non-negative number/],
+    [{ blastRadius: { criticalPathGlobs: '**/auth/**' } }, /criticalPathGlobs must be an array/],
+  ])('rejects a wrong-typed value instead of scoring NaN as LOW: %j', async (raw, message) => {
+    await writeFile(join(rootDir, '.deployoraclerc.json'), JSON.stringify(raw));
+
+    await expect(loadConfig(rootDir)).rejects.toThrow(message);
+  });
+
+  it('throws when a required config file does not exist', async () => {
+    await expect(loadConfig(rootDir, 'missing.json', { required: true })).rejects.toThrow(
+      /config file missing\.json not found/,
+    );
+  });
+
+  it('throws when the config path exists but cannot be read as a file', async () => {
+    await mkdir(join(rootDir, '.deployoraclerc.json'));
+
+    await expect(loadConfig(rootDir)).rejects.toThrow(/failed to read \.deployoraclerc\.json/);
+  });
+
+  it('does not prefix its errors with the tool name, leaving that to the caller', async () => {
+    await writeFile(join(rootDir, '.deployoraclerc.json'), 'not json');
+
+    await expect(loadConfig(rootDir)).rejects.toThrow(/^failed to parse/);
+  });
+});

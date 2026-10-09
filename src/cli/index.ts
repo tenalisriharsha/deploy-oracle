@@ -22,10 +22,12 @@ program
     '.deployoraclerc.json',
   )
   .option('--json', 'output the raw assessment as JSON', false)
-  .action(async (opts: { base: string; head?: string; config: string; json: boolean }) => {
+  .action(async (opts: { base: string; head?: string; config: string; json: boolean }, cmd: Command) => {
     try {
       const cwd = process.cwd();
-      const config = await loadConfig(cwd, opts.config);
+      // The default path is optional, but a path the user typed must exist.
+      const required = cmd.getOptionValueSource('config') === 'cli';
+      const config = await loadConfig(cwd, opts.config, { required });
       const result = await analyze(
         opts.head ? { base: opts.base, head: opts.head, cwd, config } : { base: opts.base, cwd, config },
       );
