@@ -10,23 +10,29 @@ CLI and a GitHub Action that comments the score directly on PRs.
 
 ## Preview
 
-What lands on the PR — the real markdown the formatter produces, rendered
-the way GitHub displays it:
+What lands on the PR: the Markdown the report formatter produces, rendered
+locally (not a screenshot of a live GitHub comment):
 
 ![The deploy-oracle report as a PR comment: risk table and rollout strategy](docs/screenshots/05-pr-comment.png)
 
 <details>
 <summary>More views</summary>
 
-![analyze: a genuinely HIGH-risk diff from this repo's own history](docs/screenshots/01-analyze-high.png)
+![analyze: a HIGH-risk diff from this repo's own history](docs/screenshots/01-analyze-high.png)
 
-![analyze: a genuinely LOW-risk, docs-only diff for contrast](docs/screenshots/02-analyze-low.png)
+![analyze: a docs-only commit for contrast](docs/screenshots/02-analyze-low.png)
 
 ![analyze --json: the same engine that powers the PR comment](docs/screenshots/03-json.png)
 
 ![--help](docs/screenshots/04-help.png)
 
-![A config file reweighting the same diff from HIGH (59) to CRITICAL (78)](docs/screenshots/06-custom-config.png)
+![A config file reweighting the same diff from HIGH (50) to CRITICAL (75)](docs/screenshots/06-custom-config.png)
+
+Every image is produced by
+[`scripts/screenshots/generate.mjs`](scripts/screenshots/generate.mjs), which
+runs the command shown in each image and captures its real output and exit
+status. Scores depend on the checkout they were generated from (see the
+working-tree note under [Usage (CLI)](#usage-cli)).
 
 </details>
 
@@ -54,26 +60,37 @@ node dist/cli/index.js analyze --base main --head HEAD
 # Machine-readable output
 node dist/cli/index.js analyze --json
 
-# Use a config file at a non-default path
+# Use a config file at a non-default path (fails if the file does not exist)
 node dist/cli/index.js analyze --config risk-config.json
 ```
 
-Example output:
+Two things to know about what gets scored:
+
+- Without `--head`, the diff is `git diff <base>` against the working tree,
+  so untracked files are not included until they are `git add`ed.
+- The diff comes from `--base`/`--head`, but the import graph, the list of
+  existing tests and any coverage report are read from the files currently
+  checked out in `cwd`. Scoring an old range from a newer checkout can
+  therefore give a different blast-radius or test-coverage score than
+  scoring it with that head checked out (the Action always runs with the PR
+  head checked out).
+
+Example output (`node dist/cli/index.js analyze --base 972b3a1 --head 03813fb`,
+run on this repository):
 
 ```
-Deploy Oracle risk report (HEAD -> working-tree)
-Risk score: 55/100 (HIGH)
+Deploy Oracle risk report (972b3a1 -> 03813fb)
+Risk score: 50/100 (HIGH)
 
 Factors:
-  - Change size: 23/100 — 7 files changed, 58 lines touched
-  - Blast radius: 93/100 — src/types/index.ts has 14 known dependents
-  - Test coverage delta: 50/100 — 2/4 changed files with no test coverage (src/index.ts, src/types/index.ts)
+  - Change size: 26/100 — 7 files changed, 257 lines touched
+  - Blast radius: 100/100 — src/analyze.ts has 6 known dependents; touches critical paths: src/config/load-config.test.ts, src/config/load-config.ts
+  - Test coverage delta: 25/100 — 2 files with an existing test that wasn't updated (src/cli/index.ts, src/index.ts)
 
 Rollout strategy:
   Canary: 25% first
   Monitor:
-    - Blast radius is elevated (93/100) — src/types/index.ts has 14 known dependents. Monitor the downstream consumers of the changed files closely.
-    - Test coverage delta is elevated (50/100) — 2/4 changed files with no test coverage (src/index.ts, src/types/index.ts). Monitor for regressions in the paths that shipped without test updates.
+    - Blast radius is elevated (100/100) — src/analyze.ts has 6 known dependents; touches critical paths: src/config/load-config.test.ts, src/config/load-config.ts. Monitor the downstream consumers of the changed files closely.
   Rollback: Keep the previous version ready to restore; roll back at the first sign of regression rather than waiting out the full canary window.
 ```
 
@@ -117,24 +134,25 @@ If the action isn't running on a `pull_request` event (or `base` can't be
 resolved another way), set `base`/`head` explicitly; the report still
 prints to the job log even when there's no PR to comment on.
 
-Example PR comment:
+Example PR comment body for the same diff (output of
+`node scripts/screenshots/print-pr-comment.mjs 972b3a1 03813fb`):
 
 > ### Deploy Oracle risk report
-> **Risk score:** 55/100 (HIGH)
+> **Risk score:** 50/100 (HIGH)
 >
-> _Diffing `main` → `a1b2c3d`_
+>
+> _Diffing `972b3a1` → `03813fb`_
 >
 > | Factor | Score | Detail |
 > | --- | --- | --- |
-> | Change size | 23/100 | 7 files changed, 58 lines touched |
-> | Blast radius | 93/100 | src/types/index.ts has 14 known dependents |
-> | Test coverage delta | 50/100 | 2/4 changed files with no test coverage (src/index.ts, src/types/index.ts) |
+> | Change size | 26/100 | 7 files changed, 257 lines touched |
+> | Blast radius | 100/100 | src/analyze.ts has 6 known dependents; touches critical paths: src/config/load-config.test.ts, src/config/load-config.ts |
+> | Test coverage delta | 25/100 | 2 files with an existing test that wasn't updated (src/cli/index.ts, src/index.ts) |
 >
 > **Rollout strategy**
 > - Canary: 25% first
 > - Monitor:
->   - Blast radius is elevated (93/100) — src/types/index.ts has 14 known dependents. Monitor the downstream consumers of the changed files closely.
->   - Test coverage delta is elevated (50/100) — 2/4 changed files with no test coverage (src/index.ts, src/types/index.ts). Monitor for regressions in the paths that shipped without test updates.
+>   - Blast radius is elevated (100/100) — src/analyze.ts has 6 known dependents; touches critical paths: src/config/load-config.test.ts, src/config/load-config.ts. Monitor the downstream consumers of the changed files closely.
 > - Rollback: Keep the previous version ready to restore; roll back at the first sign of regression rather than waiting out the full canary window.
 
 The action edits this same comment (matched via a hidden HTML marker) on
@@ -265,4 +283,4 @@ npm run build
 
 ## License
 
-MIT
+[MIT](./LICENSE)
