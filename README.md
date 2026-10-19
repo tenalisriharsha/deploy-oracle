@@ -26,13 +26,12 @@ locally (not a screenshot of a live GitHub comment):
 
 ![--help](docs/screenshots/04-help.png)
 
-![A config file reweighting the same diff from HIGH (50) to CRITICAL (75)](docs/screenshots/06-custom-config.png)
+![A config file reweighting the same diff from HIGH (59) to CRITICAL (78)](docs/screenshots/06-custom-config.png)
 
 Every image is produced by
 [`scripts/screenshots/generate.mjs`](scripts/screenshots/generate.mjs), which
 runs the command shown in each image and captures its real output and exit
-status. Scores depend on the checkout they were generated from (see the
-working-tree note under [Usage (CLI)](#usage-cli)).
+status (see the working-tree note under [Usage (CLI)](#usage-cli)).
 
 </details>
 
@@ -67,30 +66,32 @@ node dist/cli/index.js analyze --config risk-config.json
 Two things to know about what gets scored:
 
 - Without `--head`, the diff is `git diff <base>` against the working tree,
-  so untracked files are not included until they are `git add`ed.
-- The diff comes from `--base`/`--head`, but the import graph, the list of
-  existing tests and any coverage report are read from the files currently
-  checked out in `cwd`. Scoring an old range from a newer checkout can
-  therefore give a different blast-radius or test-coverage score than
-  scoring it with that head checked out (the Action always runs with the PR
-  head checked out).
+  and the import graph, the list of existing tests, and any coverage report
+  are also read from the working tree, so untracked files are not included
+  until they are `git add`ed.
+- With `--head`, every input — the diff, the import graph, the list of
+  existing tests, and any coverage report — is read from the committed tree
+  at that ref (via `git ls-tree`/`git show`), not from whatever happens to be
+  checked out in `cwd`. The same `--base`/`--head` range therefore scores the
+  same regardless of which checkout you run it from.
 
 Example output (`node dist/cli/index.js analyze --base 972b3a1 --head 03813fb`,
 run on this repository):
 
 ```
 Deploy Oracle risk report (972b3a1 -> 03813fb)
-Risk score: 50/100 (HIGH)
+Risk score: 59/100 (HIGH)
 
 Factors:
   - Change size: 26/100 — 7 files changed, 257 lines touched
   - Blast radius: 100/100 — src/analyze.ts has 6 known dependents; touches critical paths: src/config/load-config.test.ts, src/config/load-config.ts
-  - Test coverage delta: 25/100 — 2 files with an existing test that wasn't updated (src/cli/index.ts, src/index.ts)
+  - Test coverage delta: 50/100 — 2/4 changed files with no test coverage (src/cli/index.ts, src/index.ts)
 
 Rollout strategy:
   Canary: 25% first
   Monitor:
     - Blast radius is elevated (100/100) — src/analyze.ts has 6 known dependents; touches critical paths: src/config/load-config.test.ts, src/config/load-config.ts. Monitor the downstream consumers of the changed files closely.
+    - Test coverage delta is elevated (50/100) — 2/4 changed files with no test coverage (src/cli/index.ts, src/index.ts). Monitor for regressions in the paths that shipped without test updates.
   Rollback: Keep the previous version ready to restore; roll back at the first sign of regression rather than waiting out the full canary window.
 ```
 
@@ -138,7 +139,7 @@ Example PR comment body for the same diff (output of
 `node scripts/screenshots/print-pr-comment.mjs 972b3a1 03813fb`):
 
 > ### Deploy Oracle risk report
-> **Risk score:** 50/100 (HIGH)
+> **Risk score:** 59/100 (HIGH)
 >
 >
 > _Diffing `972b3a1` → `03813fb`_
@@ -147,12 +148,13 @@ Example PR comment body for the same diff (output of
 > | --- | --- | --- |
 > | Change size | 26/100 | 7 files changed, 257 lines touched |
 > | Blast radius | 100/100 | src/analyze.ts has 6 known dependents; touches critical paths: src/config/load-config.test.ts, src/config/load-config.ts |
-> | Test coverage delta | 25/100 | 2 files with an existing test that wasn't updated (src/cli/index.ts, src/index.ts) |
+> | Test coverage delta | 50/100 | 2/4 changed files with no test coverage (src/cli/index.ts, src/index.ts) |
 >
 > **Rollout strategy**
 > - Canary: 25% first
 > - Monitor:
 >   - Blast radius is elevated (100/100) — src/analyze.ts has 6 known dependents; touches critical paths: src/config/load-config.test.ts, src/config/load-config.ts. Monitor the downstream consumers of the changed files closely.
+>   - Test coverage delta is elevated (50/100) — 2/4 changed files with no test coverage (src/cli/index.ts, src/index.ts). Monitor for regressions in the paths that shipped without test updates.
 > - Rollback: Keep the previous version ready to restore; roll back at the first sign of regression rather than waiting out the full canary window.
 
 The action edits this same comment (matched via a hidden HTML marker) on
