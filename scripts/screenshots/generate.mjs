@@ -10,8 +10,9 @@
 //   (cd scripts/screenshots && npm ci)
 //   node scripts/screenshots/generate.mjs
 //
-// The risk factors scan the working tree for the import graph and existing
-// tests, so output reflects the checkout these images were generated from.
+// Every shot passes --head, so the import graph, existing tests, and any
+// coverage report are read from that committed ref rather than whatever is
+// on disk in this checkout — the output is reproducible across checkouts.
 import { spawn } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
