@@ -1,6 +1,11 @@
+import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import type { CoverageSummary } from '../scoring/test-coverage.js';
+
+const execFileAsync = promisify(execFile);
+const MAX_BUFFER = 1024 * 1024 * 20;
 
 const DEFAULT_COVERAGE_SUMMARY_PATH = 'coverage/coverage-summary.json';
 
@@ -22,6 +27,35 @@ export async function readCoverageSummary(
     return undefined;
   }
 
+  return parseCoverageSummary(raw, rootDir);
+}
+
+/**
+ * Same as {@link readCoverageSummary}, but reads the summary from the
+ * committed tree at `ref` (via `git show`) instead of the working
+ * checkout, so the result doesn't depend on what happens to be on disk.
+ */
+export async function readCoverageSummaryAtRef(
+  cwd: string,
+  ref: string,
+  summaryPath: string = DEFAULT_COVERAGE_SUMMARY_PATH,
+): Promise<CoverageSummary | undefined> {
+  let raw: string;
+  try {
+    const { stdout } = await execFileAsync('git', ['show', `${ref}:${summaryPath}`], {
+      cwd,
+      maxBuffer: MAX_BUFFER,
+      encoding: 'utf8',
+    });
+    raw = stdout;
+  } catch {
+    return undefined;
+  }
+
+  return parseCoverageSummary(raw, cwd);
+}
+
+function parseCoverageSummary(raw: string, rootDir: string): CoverageSummary | undefined {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);

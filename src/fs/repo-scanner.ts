@@ -1,6 +1,11 @@
+import { execFile } from 'node:child_process';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import type { SourceFile } from '../scoring/dependency-graph.js';
+
+const execFileAsync = promisify(execFile);
+const MAX_BUFFER = 1024 * 1024 * 20;
 
 const IGNORED_DIR_NAMES = new Set(['node_modules', 'dist', 'build', 'coverage']);
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
@@ -15,6 +20,46 @@ export async function scanRepoFiles(rootDir: string): Promise<SourceFile[]> {
   const results: SourceFile[] = [];
   await walk(rootDir, rootDir, results);
   return results;
+}
+
+/**
+ * Same as {@link scanRepoFiles}, but reads the committed tree at `ref`
+ * (via `git ls-tree` and `git show`) instead of the working checkout, so
+ * the result doesn't depend on what happens to be on disk in `cwd`.
+ */
+export async function scanRepoFilesAtRef(cwd: string, ref: string): Promise<SourceFile[]> {
+  const { stdout } = await execFileAsync('git', ['ls-tree', '-r', '-z', '--name-only', ref, '--'], {
+    cwd,
+    maxBuffer: MAX_BUFFER,
+  });
+
+  const paths = stdout.split('\0').filter((entry) => entry.length > 0 && isIncludedPath(entry));
+
+  const files = await Promise.all(
+    paths.map(async (relPath): Promise<SourceFile | undefined> => {
+      try {
+        const { stdout: content } = await execFileAsync('git', ['show', `${ref}:${relPath}`], {
+          cwd,
+          maxBuffer: MAX_BUFFER,
+          encoding: 'utf8',
+        });
+        return { path: relPath, content };
+      } catch {
+        return undefined;
+      }
+    }),
+  );
+
+  return files.filter((file): file is SourceFile => file !== undefined);
+}
+
+function isIncludedPath(relPath: string): boolean {
+  const segments = relPath.split('/');
+  const fileName = segments.pop() ?? '';
+  for (const segment of segments) {
+    if (segment.startsWith('.') || IGNORED_DIR_NAMES.has(segment)) return false;
+  }
+  return SOURCE_EXTENSIONS.has(path.extname(fileName));
 }
 
 async function walk(rootDir: string, currentDir: string, results: SourceFile[]): Promise<void> {

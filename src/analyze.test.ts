@@ -88,9 +88,9 @@ describe('analyze', () => {
 
     expect(blastRadius?.score).toBe(100);
     expect(result.rollout.skipCanary).toBe(false);
-    expect(result.rollout.monitoringFocusAreas.some((area) => area.includes('src/auth/login.ts'))).toBe(
-      true,
-    );
+    expect(
+      result.rollout.monitoringFocusAreas.some((area) => area.includes('src/auth/login.ts')),
+    ).toBe(true);
   });
 
   it('honors a .deployoraclerc.json in cwd for thresholds and weights', async () => {
@@ -153,6 +153,46 @@ describe('analyze', () => {
     expect(result.rollout.skipCanary).toBe(false);
   });
 
+  it('scores the same range identically regardless of what is checked out in cwd', async () => {
+    // base commit: a source file with no test.
+    await mkdir(join(repoDir, 'src'), { recursive: true });
+    await writeFile(join(repoDir, 'src', 'widget.ts'), 'export const widget = 1;\n');
+    await git(repoDir, ['add', '.']);
+    await git(repoDir, ['commit', '-q', '-m', 'add widget']);
+    const { stdout: baseOut } = await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: repoDir });
+    const base = baseOut.trim();
+
+    // head commit (the PR range being scored): modifies the source file, adds no test.
+    await writeFile(join(repoDir, 'src', 'widget.ts'), 'export const widget = 2;\n');
+    await git(repoDir, ['add', '.']);
+    await git(repoDir, ['commit', '-q', '-m', 'modify widget']);
+    const { stdout: headOut } = await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: repoDir });
+    const head = headOut.trim();
+
+    // A later, unrelated commit adds a test for the file — not part of the base..head range.
+    await writeFile(join(repoDir, 'src', 'widget.test.ts'), 'test.todo("widget");\n');
+    await git(repoDir, ['add', '.']);
+    await git(repoDir, ['commit', '-q', '-m', 'add widget test later']);
+
+    const scoreWithLaterTestCheckedOut = await analyze({ base, head, cwd: repoDir });
+
+    await git(repoDir, ['checkout', '-q', head]);
+    const scoreWithOlderTreeCheckedOut = await analyze({ base, head, cwd: repoDir });
+
+    const coverageA = scoreWithLaterTestCheckedOut.assessment.factors.find(
+      (f) => f.id === 'test-coverage',
+    );
+    const coverageB = scoreWithOlderTreeCheckedOut.assessment.factors.find(
+      (f) => f.id === 'test-coverage',
+    );
+
+    expect(coverageA?.score).toBe(100);
+    expect(coverageB?.score).toBe(100);
+    expect(scoreWithLaterTestCheckedOut.assessment.score).toBe(
+      scoreWithOlderTreeCheckedOut.assessment.score,
+    );
+  });
+
   it('keeps the weighted average when the floor is configured off', async () => {
     await mkdir(join(repoDir, 'db', 'migrations'), { recursive: true });
     await writeFile(join(repoDir, 'db', 'migrations', '001_drop_users.sql'), 'DROP TABLE users;\n');
@@ -179,4 +219,3 @@ describe('analyze', () => {
     expect(result.assessment.floorApplied).toBeUndefined();
   });
 });
-
