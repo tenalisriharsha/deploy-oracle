@@ -35,15 +35,6 @@ status (see the working-tree note under [Usage (CLI)](#usage-cli)).
 
 </details>
 
-## Project Status
-
-Feature-complete: all planned phases (scoring engine, blast radius, test
-coverage delta, rollout recommendations, the GitHub Action, config file
-support, CI) are done, tested, and wired end-to-end. See
-[PROGRESS.md](./PROGRESS.md) for the architecture and phased build history,
-and [DAILY_REPORT.md](./DAILY_REPORT.md) for a summary of what was built
-each night.
-
 ## Usage (CLI)
 
 ```sh
@@ -282,6 +273,10 @@ npm run typecheck
 npm run lint
 npm run build
 ```
+
+## Status
+
+Complete at version 0.1. The phase-by-phase build history is in [PROGRESS.md](PROGRESS.md) and known limitations and ideas for next steps are in [DAILY_REPORT.md](DAILY_REPORT.md).
 
 ## License
 
