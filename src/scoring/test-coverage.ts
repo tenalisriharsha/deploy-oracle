@@ -61,7 +61,9 @@ export function scoreTestCoverageDelta(
   }
 
   const changedTestKeys = new Set(
-    files.filter((file) => isTestFile(file.path)).map((file) => basenameKey(file.path)),
+    files
+      .filter((file) => file.status !== 'deleted' && isTestFile(file.path))
+      .map((file) => basenameKey(file.path)),
   );
   const existingTestKeys = new Set(
     existingPaths.filter((path) => isTestFile(path)).map((path) => basenameKey(path)),

@@ -76,6 +76,20 @@ describe('scoreTestCoverageDelta', () => {
     expect(factor.score).toBe(50);
   });
 
+  it('scores 100 when the matching test file was deleted and not re-added elsewhere', () => {
+    const factor = scoreTestCoverageDelta(
+      [
+        file({ path: 'src/widget.ts' }),
+        file({ path: 'src/widget.test.ts', status: 'deleted', additions: 0, deletions: 40 }),
+      ],
+      [],
+    );
+
+    expect(factor.score).toBe(100);
+    expect(factor.detail).toContain('1/1 changed file');
+    expect(factor.detail).toContain('src/widget.ts');
+  });
+
   it('averages risk across multiple changed source files', () => {
     const factor = scoreTestCoverageDelta(
       [file({ path: 'src/a.ts' }), file({ path: 'src/b.ts' }), file({ path: 'src/c.test.ts' })],
