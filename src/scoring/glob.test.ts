@@ -31,6 +31,20 @@ describe('globToRegExp', () => {
     expect(re.test('src/foo.bar.ts')).toBe(true);
     expect(re.test('src/fooXbarYts')).toBe(false);
   });
+
+  it('requires a path separator boundary around a ** segment', () => {
+    const re = globToRegExp('**/migrations/**');
+    expect(re.test('src/db/migrations/001.sql')).toBe(true);
+    expect(re.test('src/db/nonmigrations/001.sql')).toBe(false);
+    expect(re.test('src/db/custommigrations/foo.ts')).toBe(false);
+  });
+
+  it('requires a path separator boundary before a **/ prefix', () => {
+    const re = globToRegExp('**/foo.ts');
+    expect(re.test('foo.ts')).toBe(true);
+    expect(re.test('src/foo.ts')).toBe(true);
+    expect(re.test('barfoo.ts')).toBe(false);
+  });
 });
 
 describe('matchesAnyGlob', () => {

@@ -12,13 +12,43 @@ export function globToRegExp(pattern: string): RegExp {
   while (i < pattern.length) {
     const char = pattern.charAt(i);
 
-    if (char === '*') {
-      if (pattern.charAt(i + 1) === '*') {
+    if (char === '*' && pattern.charAt(i + 1) === '*') {
+      const afterIndex = i + 2;
+      const atStart = i === 0;
+      const atEnd = afterIndex === pattern.length;
+      const precededBySlash = atStart || pattern.charAt(i - 1) === '/';
+      const followedBySlash = !atEnd && pattern.charAt(afterIndex) === '/';
+
+      if (atStart && atEnd) {
+        // The whole pattern is just "**": match anything.
         result += '.*';
-        i += 2;
-        if (pattern.charAt(i) === '/') i += 1;
+        i = afterIndex;
         continue;
       }
+
+      if (precededBySlash && followedBySlash) {
+        // "**/" at the start, or "/**/" in the middle: zero or more whole
+        // path segments, so the match stays anchored to a "/" boundary.
+        result = atStart ? `${result}(?:.*/)?` : `${result.slice(0, -1)}(?:/.*)?/`;
+        i = afterIndex + 1;
+        continue;
+      }
+
+      if (precededBySlash && atEnd) {
+        // Trailing "/**": zero or more whole path segments after this point.
+        result = `${result.slice(0, -1)}(?:/.*)?`;
+        i = afterIndex;
+        continue;
+      }
+
+      // "**" without a clean "/" boundary on at least one side: fall back to
+      // the lenient, unanchored behavior.
+      result += '.*';
+      i = afterIndex;
+      continue;
+    }
+
+    if (char === '*') {
       result += '[^/]*';
       i += 1;
       continue;
