@@ -35,6 +35,22 @@ function isExecFileError(error: unknown): error is { stderr: string } {
 }
 
 /**
+ * Resolves the root directory of the git repository containing `cwd`. Used
+ * to scan the working tree from the same path space `git diff` reports
+ * (always repo-root-relative) regardless of which subdirectory a command
+ * was invoked from.
+ */
+export async function getRepoRoot(cwd: string): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync('git', ['rev-parse', '--show-toplevel'], { cwd });
+    return stdout.trim();
+  } catch (error) {
+    const stderr = isExecFileError(error) ? error.stderr.trim().split('\n')[0] : undefined;
+    throw new Error(stderr ? `git rev-parse failed: ${stderr}` : 'git rev-parse failed to resolve repository root');
+  }
+}
+
+/**
  * Computes the file-level diff between two refs (or a ref and the working tree)
  * by shelling out to `git diff`. Renames are disabled so every file is
  * reported as a plain add/modify/delete, keeping downstream scoring simple.

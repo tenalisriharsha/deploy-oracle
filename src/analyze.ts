@@ -1,7 +1,7 @@
 import { loadConfig, type DeployOracleConfig, type FactorWeights } from './config/load-config.js';
 import { readCoverageSummary, readCoverageSummaryAtRef } from './fs/coverage-report.js';
 import { scanRepoFiles, scanRepoFilesAtRef } from './fs/repo-scanner.js';
-import { getPullRequestDiff, type GetPullRequestDiffOptions } from './git/git-diff.js';
+import { getPullRequestDiff, getRepoRoot, type GetPullRequestDiffOptions } from './git/git-diff.js';
 import { recommendRollout } from './rollout/recommend-rollout.js';
 import { scoreBlastRadius } from './scoring/blast-radius.js';
 import { computeRiskAssessment } from './scoring/composite-scorer.js';
@@ -36,10 +36,15 @@ export async function analyze(options: AnalyzeOptions): Promise<AnalysisResult> 
   const cwd = options.cwd ?? process.cwd();
   const head = options.head;
 
+  // `git diff` always reports paths relative to the repository root, so the
+  // working-tree scan must start from that same root — not the raw `cwd` —
+  // or files silently fail to match when invoked from a subdirectory.
+  const scanRoot = head ? cwd : await getRepoRoot(cwd);
+
   const [diff, repoFiles, coverage, config] = await Promise.all([
     getPullRequestDiff(options),
-    head ? scanRepoFilesAtRef(cwd, head) : scanRepoFiles(cwd),
-    head ? readCoverageSummaryAtRef(cwd, head) : readCoverageSummary(cwd),
+    head ? scanRepoFilesAtRef(scanRoot, head) : scanRepoFiles(scanRoot),
+    head ? readCoverageSummaryAtRef(scanRoot, head) : readCoverageSummary(scanRoot),
     options.config ? Promise.resolve(options.config) : loadConfig(cwd),
   ]);
 
