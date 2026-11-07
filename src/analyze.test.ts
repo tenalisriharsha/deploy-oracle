@@ -193,6 +193,33 @@ describe('analyze', () => {
     );
   });
 
+  it('scores a working-tree change the same whether invoked from the repo root or a subdirectory', async () => {
+    await mkdir(join(repoDir, 'src'), { recursive: true });
+    await writeFile(join(repoDir, 'src', 'dep.ts'), 'export const dep = 1;\n');
+    await writeFile(
+      join(repoDir, 'src', 'importer.ts'),
+      "import { dep } from './dep.js';\nexport const x = dep;\n",
+    );
+    await git(repoDir, ['add', '.']);
+    await git(repoDir, ['commit', '-q', '-m', 'add dep and importer']);
+
+    await writeFile(join(repoDir, 'src', 'dep.ts'), 'export const dep = 2;\n');
+
+    const fromRoot = await analyze({ base: 'HEAD', cwd: repoDir });
+    const fromSubdir = await analyze({ base: 'HEAD', cwd: join(repoDir, 'src') });
+
+    const blastRadiusFromRoot = fromRoot.assessment.factors.find((f) => f.id === 'blast-radius');
+    const blastRadiusFromSubdir = fromSubdir.assessment.factors.find(
+      (f) => f.id === 'blast-radius',
+    );
+
+    expect(blastRadiusFromRoot?.detail).toContain('1 known dependent');
+    expect(blastRadiusFromSubdir?.score).toBe(blastRadiusFromRoot?.score);
+    expect(blastRadiusFromSubdir?.detail).toBe(blastRadiusFromRoot?.detail);
+    expect(fromSubdir.assessment.score).toBe(fromRoot.assessment.score);
+    expect(fromSubdir.assessment.level).toBe(fromRoot.assessment.level);
+  });
+
   it('keeps the weighted average when the floor is configured off', async () => {
     await mkdir(join(repoDir, 'db', 'migrations'), { recursive: true });
     await writeFile(join(repoDir, 'db', 'migrations', '001_drop_users.sql'), 'DROP TABLE users;\n');
