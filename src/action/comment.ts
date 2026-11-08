@@ -34,17 +34,23 @@ export async function upsertReportComment(options: UpsertReportCommentOptions): 
   const baseUrl = `https://api.github.com/repos/${options.owner}/${options.repo}`;
   const body = `${COMMENT_MARKER}\n${options.body}`;
 
-  const listResponse = await fetchImpl(
-    `${baseUrl}/issues/${options.issueNumber}/comments?per_page=100`,
-    { headers: apiHeaders(options.token) },
-  );
-  if (!listResponse.ok) {
-    throw new Error(
-      `Failed to list PR comments: ${listResponse.status} ${await listResponse.text()}`,
+  let existing: GitHubComment | undefined;
+  for (let page = 1; ; page += 1) {
+    const listResponse = await fetchImpl(
+      `${baseUrl}/issues/${options.issueNumber}/comments?per_page=100&page=${page}`,
+      { headers: apiHeaders(options.token) },
     );
+    if (!listResponse.ok) {
+      throw new Error(
+        `Failed to list PR comments: ${listResponse.status} ${await listResponse.text()}`,
+      );
+    }
+    const comments = (await listResponse.json()) as GitHubComment[];
+    existing = comments.find((comment) => comment.body.includes(COMMENT_MARKER));
+    if (existing || comments.length < 100) {
+      break;
+    }
   }
-  const comments = (await listResponse.json()) as GitHubComment[];
-  const existing = comments.find((comment) => comment.body.includes(COMMENT_MARKER));
 
   const response = existing
     ? await fetchImpl(`${baseUrl}/issues/comments/${existing.id}`, {
