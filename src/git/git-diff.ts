@@ -1,6 +1,8 @@
 import { execFile } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
-import type { PullRequestDiff } from '../types/index.js';
+import type { FileChange, PullRequestDiff } from '../types/index.js';
 import { mergeFileChanges, parseNameStatus, parseNumstat } from './diff-parser.js';
 
 const execFileAsync = promisify(execFile);
@@ -68,9 +70,58 @@ export async function getPullRequestDiff(
 
   const files = mergeFileChanges(parseNumstat(numstatOutput), parseNameStatus(nameStatusOutput));
 
+  // `git diff` never reports untracked files, even against the working tree,
+  // so pick them up separately and fold them in as additions.
+  if (!options.head) {
+    const repoRoot = await getRepoRoot(cwd);
+    const untrackedPaths = await getUntrackedFiles(repoRoot);
+    if (untrackedPaths.length > 0) {
+      files.push(...(await Promise.all(untrackedPaths.map((path) => untrackedFileChange(repoRoot, path)))));
+      files.sort((a, b) => a.path.localeCompare(b.path));
+    }
+  }
+
   return {
     base: options.base,
     head: options.head ?? 'working-tree',
     files,
   };
+}
+
+/**
+ * Lists files that are present in the working tree but not tracked by git
+ * and not excluded by .gitignore (mirrors what `git status` shows as "Untracked").
+ */
+async function getUntrackedFiles(repoRoot: string): Promise<string[]> {
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['ls-files', '--others', '--exclude-standard'],
+      { cwd: repoRoot, maxBuffer: MAX_BUFFER },
+    );
+    return stdout.split('\n').filter((line) => line.length > 0);
+  } catch (error) {
+    const stderr = isExecFileError(error) ? error.stderr.trim().split('\n')[0] : undefined;
+    throw new Error(stderr ? `git ls-files failed: ${stderr}` : 'git ls-files failed to list untracked files');
+  }
+}
+
+/** Builds a FileChange for an untracked file by reading it directly, since it has no diff. */
+async function untrackedFileChange(repoRoot: string, path: string): Promise<FileChange> {
+  const content = await readFile(join(repoRoot, path));
+  const binary = content.includes(0);
+  return {
+    path,
+    status: 'added',
+    additions: binary ? 0 : countLines(content.toString('utf8')),
+    deletions: 0,
+    binary,
+  };
+}
+
+function countLines(content: string): number {
+  if (content.length === 0) return 0;
+  const lines = content.split('\n');
+  if (lines[lines.length - 1] === '') lines.pop();
+  return lines.length;
 }

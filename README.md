@@ -57,9 +57,10 @@ node dist/cli/index.js analyze --config risk-config.json
 Two things to know about what gets scored:
 
 - Without `--head`, the diff is `git diff <base>` against the working tree,
-  and the import graph, the list of existing tests, and any coverage report
-  are also read from the working tree, so untracked files are not included
-  until they are `git add`ed.
+  plus any untracked files (so a brand-new file counts toward change size
+  without being `git add`ed first), and the import graph, the list of
+  existing tests, and any coverage report are also read from the working
+  tree.
 - With `--head`, every input — the diff, the import graph, the list of
   existing tests, and any coverage report — is read from the committed tree
   at that ref (via `git ls-tree`/`git show`), not from whatever happens to be
