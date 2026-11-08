@@ -71,4 +71,34 @@ describe('upsertReportComment', () => {
       'Failed to create PR comment: 422',
     );
   });
+
+  it('finds the marker comment beyond the first page and edits it instead of posting a duplicate', async () => {
+    const page1 = Array.from({ length: 100 }, (_, i) => ({
+      id: i + 1,
+      body: `unrelated comment ${i + 1}`,
+    }));
+    const page2 = [{ id: 101, body: '<!-- deploy-oracle:report -->\nold report' }];
+
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      const urlString = url.toString();
+      if (urlString.includes('?')) {
+        const page = Number(new URL(urlString).searchParams.get('page') ?? '1');
+        if (page === 1) return jsonResponse(page1);
+        if (page === 2) return jsonResponse(page2);
+        return jsonResponse([]);
+      }
+      return jsonResponse({ id: 101 });
+    }) as unknown as typeof fetch;
+
+    await upsertReportComment({ ...BASE_OPTIONS, fetchImpl });
+
+    const mockCalls = (fetchImpl as unknown as { mock: { calls: [string, RequestInit][] } }).mock
+      .calls;
+    const listingCalls = mockCalls.filter(([url]) => url.includes('?'));
+    expect(listingCalls.length).toBeGreaterThan(1);
+
+    const [finalUrl, finalInit] = mockCalls[mockCalls.length - 1]!;
+    expect(finalUrl).toBe('https://api.github.com/repos/acme/widgets/issues/comments/101');
+    expect(finalInit.method).toBe('PATCH');
+  });
 });
