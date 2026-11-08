@@ -69,6 +69,15 @@ describe('getPullRequestDiff', () => {
     ]);
   });
 
+  it('counts a new untracked file toward the working-tree diff', async () => {
+    await writeFile(join(repoDir, 'untracked-file.txt'), 'brand new, never git add-ed\n');
+
+    const diff = await getPullRequestDiff({ base: 'HEAD', cwd: repoDir });
+
+    const byPath = Object.fromEntries(diff.files.map((f) => [f.path, f]));
+    expect(byPath['untracked-file.txt']).toMatchObject({ status: 'added', additions: 1 });
+  });
+
   it('returns no files when there are no changes', async () => {
     const diff = await getPullRequestDiff({ base: 'HEAD', cwd: repoDir });
     expect(diff.files).toEqual([]);
