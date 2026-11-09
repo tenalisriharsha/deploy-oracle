@@ -8,7 +8,7 @@ const execFileAsync = promisify(execFile);
 const MAX_BUFFER = 1024 * 1024 * 20;
 
 const IGNORED_DIR_NAMES = new Set(['node_modules', 'dist', 'build', 'coverage']);
-const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
+const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts']);
 
 /**
  * Recursively reads every source file under `rootDir` into memory, for

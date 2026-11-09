@@ -11,7 +11,7 @@ export interface DependencyGraph {
 const IMPORT_SPECIFIER_RE =
   /(?:import|export)(?:[^'"`;]*?from)?\s*['"]([^'"]+)['"]|(?:import|require)\(\s*['"]([^'"]+)['"]\s*\)/g;
 
-const RESOLVE_EXTENSIONS = ['', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
+const RESOLVE_EXTENSIONS = ['', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts'];
 const INDEX_SUFFIXES = ['/index.ts', '/index.tsx', '/index.js', '/index.jsx'];
 const KNOWN_EXTENSION_RE = /\.(m|c)?[jt]sx?$/i;
 
