@@ -59,12 +59,50 @@ describe('loadConfig', () => {
     expect(config.weights).toEqual({ 'change-size': 3 });
   });
 
-  it('ignores non-object section values', async () => {
+  it('throws on a non-object section value instead of silently defaulting to {}', async () => {
     await writeFile(join(rootDir, '.deployoraclerc.json'), JSON.stringify({ changeSize: 'nope' }));
+
+    await expect(loadConfig(rootDir)).rejects.toThrow(/changeSize must be an object/);
+  });
+
+  it('throws on an unrecognized top-level config key instead of silently dropping it', async () => {
+    await writeFile(
+      join(rootDir, '.deployoraclerc.json'),
+      // "weigths" is a typo of "weights" — should fail loudly, not vanish.
+      JSON.stringify({ weigths: { 'blast-radius': 0 } }),
+    );
+
+    await expect(loadConfig(rootDir)).rejects.toThrow(/weigths/);
+  });
+
+  it('throws on an unrecognized key within a known section instead of silently ignoring it', async () => {
+    await writeFile(
+      join(rootDir, '.deployoraclerc.json'),
+      // "maxDependants" is a typo of "maxDependents" — should fail loudly, not
+      // be merged in alongside the untouched default.
+      JSON.stringify({ blastRadius: { maxDependants: 2 } }),
+    );
+
+    await expect(loadConfig(rootDir)).rejects.toThrow(/maxDependants/);
+  });
+
+  it('still loads a valid config that only sets a subset of known keys per section', async () => {
+    await writeFile(
+      join(rootDir, '.deployoraclerc.json'),
+      JSON.stringify({
+        changeSize: { maxFiles: 10 },
+        blastRadius: { maxDependents: 5 },
+        testCoverage: { lowCoverageThreshold: 80 },
+        weights: { 'blast-radius': 2 },
+      }),
+    );
 
     const config = await loadConfig(rootDir);
 
-    expect(config.changeSize).toEqual(DEFAULT_CONFIG.changeSize);
+    expect(config.changeSize).toEqual({ maxFiles: 10, maxLines: DEFAULT_CONFIG.changeSize.maxLines });
+    expect(config.blastRadius.maxDependents).toBe(5);
+    expect(config.testCoverage).toEqual({ lowCoverageThreshold: 80 });
+    expect(config.weights).toEqual({ 'blast-radius': 2 });
   });
 
   it('accepts a valid blastRadius.criticalPathFloor', async () => {
