@@ -74,10 +74,16 @@ export async function loadConfig(
 
   const config = parsed as Record<string, unknown>;
 
-  const changeSize = asRecord(config.changeSize);
-  const blastRadius = asRecord(config.blastRadius);
-  const testCoverage = asRecord(config.testCoverage);
-  const weights = asRecord(config.weights);
+  assertKnownKeys(config, TOP_LEVEL_KEYS, configPath);
+
+  const changeSize = asRecord(config.changeSize, `${configPath} changeSize`);
+  const blastRadius = asRecord(config.blastRadius, `${configPath} blastRadius`);
+  const testCoverage = asRecord(config.testCoverage, `${configPath} testCoverage`);
+  const weights = asRecord(config.weights, `${configPath} weights`);
+
+  assertKnownKeys(changeSize, CHANGE_SIZE_KEYS, `${configPath} changeSize`);
+  assertKnownKeys(blastRadius, BLAST_RADIUS_KEYS, `${configPath} blastRadius`);
+  assertKnownKeys(testCoverage, TEST_COVERAGE_KEYS, `${configPath} testCoverage`);
 
   // A wrong-typed threshold or weight would otherwise turn the score into NaN,
   // which scoreToLevel() reports as LOW: the least safe possible failure mode.
@@ -123,8 +129,26 @@ function assertNonNegativeNumber(value: unknown, field: string): void {
   }
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
+function asRecord(value: unknown, field: string): Record<string, unknown> {
+  if (value === undefined) return {};
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error(`${field} must be an object, got ${JSON.stringify(value)}`);
+  }
+  return value as Record<string, unknown>;
+}
+
+const TOP_LEVEL_KEYS = ['changeSize', 'blastRadius', 'testCoverage', 'weights'];
+const CHANGE_SIZE_KEYS = ['maxFiles', 'maxLines'];
+const BLAST_RADIUS_KEYS = ['criticalPathGlobs', 'maxDependents', 'criticalPathFloor'];
+const TEST_COVERAGE_KEYS = ['lowCoverageThreshold'];
+
+function assertKnownKeys(
+  record: Record<string, unknown>,
+  knownKeys: readonly string[],
+  field: string,
+): void {
+  const unknownKeys = Object.keys(record).filter((key) => !knownKeys.includes(key));
+  if (unknownKeys.length > 0) {
+    throw new Error(`${field} has unrecognized key(s): ${unknownKeys.join(', ')}`);
+  }
 }
