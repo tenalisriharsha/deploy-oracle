@@ -99,4 +99,39 @@ describe('scoreTestCoverageDelta', () => {
     // a.ts: no test at all -> 100; b.ts: existing test, not updated -> 50
     expect(factor.score).toBe(75);
   });
+
+  it('does not let a same-named test in another directory cover an unrelated source file', () => {
+    // src/index.ts has no test of its own; src/cli/index.test.ts only covers
+    // the co-located src/cli/index.ts. Matching by basename alone conflates
+    // the two "index" files and wrongly marks src/index.ts as covered.
+    const factor = scoreTestCoverageDelta(
+      [
+        file({ path: 'src/index.ts' }),
+        file({ path: 'src/cli/index.ts' }),
+        file({ path: 'src/cli/index.test.ts' }),
+      ],
+      [],
+    );
+
+    // src/cli/index.ts is correctly covered by its co-located test -> 0
+    // src/index.ts has no real test at all -> 100
+    expect(factor.score).toBe(50);
+    expect(factor.detail).toContain('1/2 changed file');
+    expect(factor.detail).toContain('src/index.ts');
+    expect(factor.detail).not.toContain('src/cli/index.ts)');
+  });
+
+  it('does not treat a pre-existing same-named test in another directory as covering an unrelated source file', () => {
+    // Only src/cli/index.test.ts pre-exists, which covers src/cli/index.ts.
+    // src/index.ts was never covered and should be reported as such, not as
+    // having a stale (unchanged) existing test.
+    const factor = scoreTestCoverageDelta(
+      [file({ path: 'src/index.ts' })],
+      ['src/cli/index.test.ts'],
+    );
+
+    expect(factor.score).toBe(100);
+    expect(factor.detail).toContain('no test coverage');
+    expect(factor.detail).toContain('src/index.ts');
+  });
 });
