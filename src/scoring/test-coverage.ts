@@ -25,10 +25,21 @@ function isSourceFile(path: string): boolean {
   return SOURCE_EXT_RE.test(path) && !DECLARATION_FILE_RE.test(path) && !isTestFile(path);
 }
 
-/** Filename with extension and test suffix stripped, used to correlate a source file with its test. */
-function basenameKey(path: string): string {
-  const base = path.split('/').pop() ?? path;
-  return base.replace(SOURCE_EXT_RE, '').replace(/\.(test|spec)$/i, '');
+const CONTAINER_DIR_RE = /^(src|lib|tests?|__tests__)$/i;
+
+/**
+ * Path with extension and test suffix stripped, used to correlate a source
+ * file with its test. Generic container directories (src, lib, test(s),
+ * __tests__) are dropped so a colocated test (src/foo/bar.test.ts) and a
+ * mirrored one (test/foo/bar.test.ts) both key to the same value as their
+ * source (src/foo/bar.ts), while directories that distinguish two
+ * same-named files (src/index.ts vs src/cli/index.ts) are preserved.
+ */
+function correlationKey(path: string): string {
+  const segments = path.replace(SOURCE_EXT_RE, '').split('/');
+  const base = (segments.pop() ?? '').replace(/\.(test|spec)$/i, '');
+  const meaningfulDirs = segments.filter((segment) => !CONTAINER_DIR_RE.test(segment));
+  return [...meaningfulDirs, base].join('/');
 }
 
 /**
@@ -63,17 +74,17 @@ export function scoreTestCoverageDelta(
   const changedTestKeys = new Set(
     files
       .filter((file) => file.status !== 'deleted' && isTestFile(file.path))
-      .map((file) => basenameKey(file.path)),
+      .map((file) => correlationKey(file.path)),
   );
   const existingTestKeys = new Set(
-    existingPaths.filter((path) => isTestFile(path)).map((path) => basenameKey(path)),
+    existingPaths.filter((path) => isTestFile(path)).map((path) => correlationKey(path)),
   );
 
   const uncoveredPaths: string[] = [];
   const stalePaths: string[] = [];
 
   for (const file of changedSourceFiles) {
-    const key = basenameKey(file.path);
+    const key = correlationKey(file.path);
     if (changedTestKeys.has(key)) continue;
 
     const coveragePct = coverage?.[file.path]?.linesPct;
