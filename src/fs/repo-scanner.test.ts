@@ -45,6 +45,23 @@ describe('scanRepoFiles', () => {
     expect(files.map((f) => f.path)).toEqual(['src/a.ts']);
   });
 
+  it('includes .mts and .cts source files, including existing test files', async () => {
+    await mkdir(join(rootDir, 'src'), { recursive: true });
+    await writeFile(join(rootDir, 'src', 'widget.mts'), 'export const widget = 1;');
+    await writeFile(join(rootDir, 'src', 'widget.test.mts'), 'export const test = 1;');
+    await writeFile(join(rootDir, 'src', 'gadget.cts'), 'module.exports.gadget = 1;');
+    await writeFile(join(rootDir, 'src', 'gadget.test.cts'), 'module.exports.test = 1;');
+
+    const files = await scanRepoFiles(rootDir);
+
+    expect(files.map((f) => f.path).sort()).toEqual([
+      'src/gadget.cts',
+      'src/gadget.test.cts',
+      'src/widget.mts',
+      'src/widget.test.mts',
+    ]);
+  });
+
   it('ignores node_modules, dist, build, coverage, and dotfiles', async () => {
     await mkdir(join(rootDir, 'node_modules', 'pkg'), { recursive: true });
     await mkdir(join(rootDir, 'dist'), { recursive: true });
@@ -110,5 +127,24 @@ describe('scanRepoFilesAtRef', () => {
     const files = await scanRepoFilesAtRef(repoDir, 'HEAD');
 
     expect(files.map((f) => f.path)).toEqual(['src/a.ts']);
+  });
+
+  it('includes .mts and .cts source files, including existing test files', async () => {
+    await mkdir(join(repoDir, 'src'), { recursive: true });
+    await writeFile(join(repoDir, 'src', 'widget.mts'), 'export const widget = 1;');
+    await writeFile(join(repoDir, 'src', 'widget.test.mts'), 'export const test = 1;');
+    await writeFile(join(repoDir, 'src', 'gadget.cts'), 'module.exports.gadget = 1;');
+    await writeFile(join(repoDir, 'src', 'gadget.test.cts'), 'module.exports.test = 1;');
+    await git(repoDir, ['add', '.']);
+    await git(repoDir, ['commit', '-q', '-m', 'commit']);
+
+    const files = await scanRepoFilesAtRef(repoDir, 'HEAD');
+
+    expect(files.map((f) => f.path).sort()).toEqual([
+      'src/gadget.cts',
+      'src/gadget.test.cts',
+      'src/widget.mts',
+      'src/widget.test.mts',
+    ]);
   });
 });

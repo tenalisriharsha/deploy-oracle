@@ -23,6 +23,23 @@ describe('scoreBlastRadius', () => {
     expect(factor.detail).toContain('no internal dependents');
   });
 
+  it('counts known dependents of a changed .mts file', () => {
+    const graph = buildDependencyGraph([
+      { path: 'src/a.mts', content: `import './shared.mjs';` },
+      { path: 'src/b.mts', content: `import './shared.mjs';` },
+      { path: 'src/c.mts', content: `import './shared.mjs';` },
+      { path: 'src/shared.mts', content: '' },
+    ]);
+
+    const factor = scoreBlastRadius([file({ path: 'src/shared.mts' })], graph, {
+      criticalPathGlobs: [],
+      maxDependents: 6,
+    });
+
+    expect(factor.score).toBe(50);
+    expect(factor.detail).toContain('src/shared.mts has 3 known dependents');
+  });
+
   it('scores proportionally to the largest number of dependents among changed files', () => {
     const graph = buildDependencyGraph([
       { path: 'src/a.ts', content: `import './shared.js';` },

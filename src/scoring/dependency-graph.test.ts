@@ -62,6 +62,24 @@ describe('buildDependencyGraph', () => {
 
     expect(graph.edges.get('src/a.ts')).toEqual(new Set());
   });
+
+  it('resolves relative imports that use an explicit .mjs extension to a .mts file (NodeNext style)', () => {
+    const graph = buildDependencyGraph([
+      { path: 'src/a.mts', content: `import { b } from './b.mjs';` },
+      { path: 'src/b.mts', content: 'export const b = 1;' },
+    ]);
+
+    expect(graph.edges.get('src/a.mts')).toEqual(new Set(['src/b.mts']));
+  });
+
+  it('resolves relative imports that use an explicit .cjs extension to a .cts file (NodeNext style)', () => {
+    const graph = buildDependencyGraph([
+      { path: 'src/a.cts', content: `import { b } from './b.cjs';` },
+      { path: 'src/b.cts', content: 'export const b = 1;' },
+    ]);
+
+    expect(graph.edges.get('src/a.cts')).toEqual(new Set(['src/b.cts']));
+  });
 });
 
 describe('countDependents', () => {
@@ -79,5 +97,15 @@ describe('countDependents', () => {
   it('does not count a file as its own dependent', () => {
     const graph = buildDependencyGraph([{ path: 'src/a.ts', content: '' }]);
     expect(countDependents(graph, 'src/a.ts')).toBe(0);
+  });
+
+  it('counts dependents of a .mts file', () => {
+    const graph = buildDependencyGraph([
+      { path: 'src/a.mts', content: `import { shared } from './shared.mjs';` },
+      { path: 'src/b.mts', content: `import { shared } from './shared.mjs';` },
+      { path: 'src/shared.mts', content: 'export const shared = 1;' },
+    ]);
+
+    expect(countDependents(graph, 'src/shared.mts')).toBe(2);
   });
 });
