@@ -129,6 +129,28 @@ describe('loadConfig', () => {
     await expect(loadConfig(rootDir)).rejects.toThrow(/criticalPathFloor must be one of/);
   });
 
+  it.each(['blastRadius', 'blast_radius', 'bast-radius'])(
+    'throws on a weight keyed by a misspelled factor id instead of dropping it: %s',
+    async (key) => {
+      await writeFile(
+        join(rootDir, '.deployoraclerc.json'),
+        JSON.stringify({ weights: { [key]: 0 } }),
+      );
+
+      await expect(loadConfig(rootDir)).rejects.toThrow(
+        new RegExp(`weights has unrecognized key\\(s\\): ${key}`),
+      );
+    },
+  );
+
+  it('accepts a weight for each factor the scorers report', async () => {
+    const weights = { 'change-size': 1, 'blast-radius': 2, 'test-coverage': 0 };
+    await writeFile(join(rootDir, '.deployoraclerc.json'), JSON.stringify({ weights }));
+
+    const config = await loadConfig(rootDir);
+    expect(config.weights).toEqual(weights);
+  });
+
   it.each([
     [{ changeSize: { maxFiles: 'abc' } }, /changeSize\.maxFiles must be a non-negative number/],
     [{ changeSize: { maxLines: -5 } }, /changeSize\.maxLines must be a non-negative number/],

@@ -84,6 +84,10 @@ export async function loadConfig(
   assertKnownKeys(changeSize, CHANGE_SIZE_KEYS, `${configPath} changeSize`);
   assertKnownKeys(blastRadius, BLAST_RADIUS_KEYS, `${configPath} blastRadius`);
   assertKnownKeys(testCoverage, TEST_COVERAGE_KEYS, `${configPath} testCoverage`);
+  // applyWeightOverride() looks a weight up by the factor's exact id, so a key
+  // spelled any other way (blastRadius, blast_radius) would be accepted here and
+  // then dropped: the factor the user meant to reweight keeps its default.
+  assertKnownKeys(weights, FACTOR_IDS, `${configPath} weights`);
 
   // A wrong-typed threshold or weight would otherwise turn the score into NaN,
   // which scoreToLevel() reports as LOW: the least safe possible failure mode.
@@ -141,6 +145,8 @@ const TOP_LEVEL_KEYS = ['changeSize', 'blastRadius', 'testCoverage', 'weights'];
 const CHANGE_SIZE_KEYS = ['maxFiles', 'maxLines'];
 const BLAST_RADIUS_KEYS = ['criticalPathGlobs', 'maxDependents', 'criticalPathFloor'];
 const TEST_COVERAGE_KEYS = ['lowCoverageThreshold'];
+/** The `RiskFactor.id`s a weight can name: one per scorer in src/scoring. */
+const FACTOR_IDS = ['change-size', 'blast-radius', 'test-coverage'];
 
 function assertKnownKeys(
   record: Record<string, unknown>,
