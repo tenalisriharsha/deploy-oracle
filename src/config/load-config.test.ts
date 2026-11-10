@@ -75,6 +75,17 @@ describe('loadConfig', () => {
     await expect(loadConfig(rootDir)).rejects.toThrow(/weigths/);
   });
 
+  it('throws on an unrecognized weight key instead of silently dropping the override', async () => {
+    await writeFile(
+      join(rootDir, '.deployoraclerc.json'),
+      // "blastRadius" is a typo of the factor id "blast-radius" — should fail
+      // loudly, not be silently dropped while scoring still uses the default weight.
+      JSON.stringify({ weights: { blastRadius: 0 } }),
+    );
+
+    await expect(loadConfig(rootDir)).rejects.toThrow(/blastRadius/);
+  });
+
   it('throws on an unrecognized key within a known section instead of silently ignoring it', async () => {
     await writeFile(
       join(rootDir, '.deployoraclerc.json'),
