@@ -84,6 +84,7 @@ export async function loadConfig(
   assertKnownKeys(changeSize, CHANGE_SIZE_KEYS, `${configPath} changeSize`);
   assertKnownKeys(blastRadius, BLAST_RADIUS_KEYS, `${configPath} blastRadius`);
   assertKnownKeys(testCoverage, TEST_COVERAGE_KEYS, `${configPath} testCoverage`);
+  assertKnownKeys(weights, KNOWN_FACTOR_IDS, `${configPath} weights`);
 
   // A wrong-typed threshold or weight would otherwise turn the score into NaN,
   // which scoreToLevel() reports as LOW: the least safe possible failure mode.
@@ -141,6 +142,8 @@ const TOP_LEVEL_KEYS = ['changeSize', 'blastRadius', 'testCoverage', 'weights'];
 const CHANGE_SIZE_KEYS = ['maxFiles', 'maxLines'];
 const BLAST_RADIUS_KEYS = ['criticalPathGlobs', 'maxDependents', 'criticalPathFloor'];
 const TEST_COVERAGE_KEYS = ['lowCoverageThreshold'];
+/** The only valid `weights` keys, matching each `RiskFactor.id` in src/analyze.ts. */
+const KNOWN_FACTOR_IDS = ['change-size', 'blast-radius', 'test-coverage'];
 
 function assertKnownKeys(
   record: Record<string, unknown>,
