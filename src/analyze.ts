@@ -37,9 +37,11 @@ export async function analyze(options: AnalyzeOptions): Promise<AnalysisResult> 
   const head = options.head;
 
   // `git diff` always reports paths relative to the repository root, so the
-  // working-tree scan must start from that same root — not the raw `cwd` —
-  // or files silently fail to match when invoked from a subdirectory.
-  const scanRoot = head ? cwd : await getRepoRoot(cwd);
+  // scan must start from that same root — not the raw `cwd` — or files
+  // silently fail to match when invoked from a subdirectory. This applies to
+  // both the working-tree scan and the ref-based scan (`git ls-tree`/`git
+  // show` are likewise scoped to `cwd`).
+  const scanRoot = await getRepoRoot(cwd);
 
   const [diff, repoFiles, coverage, config] = await Promise.all([
     getPullRequestDiff(options),
